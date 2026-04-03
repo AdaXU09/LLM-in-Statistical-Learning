@@ -1,0 +1,94 @@
+---
+title: "Study 1 Descriptive"
+author: "Spike"
+date: "2026-01-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(stringr)
+```
+
+## Load Data
+``` {r, message=FALSE, warning=FALSE}
+path <- "Data/Study_1_Objective_Data.xlsx"
+df <- read_excel(path)
+
+if (!("accuracy_rate" %in% names(df))) {
+  if ("sum_score" %in% names(df)) {
+    df <- df %>% mutate(accuracy_rate = as.numeric(sum_score) / 6)
+  } else if (all(paste0("score", 1:6) %in% names(df))) {
+    df <- df %>%
+      mutate(
+        accuracy_rate = rowSums(across(all_of(paste0("score", 1:6))), na.rm = TRUE) / 6
+      )
+  } else {
+    stop("Cannot find accuracy_rate (or sum_score / score1-6) to compute accuracy.")
+  }
+}
+df <- df %>% mutate(accuracy_rate = as.numeric(accuracy_rate))
+```
+
+## Table 1
+``` {r, message=FALSE, warning=FALSE}
+tbl1 <- df %>%
+  mutate(
+    Platform = case_when(
+      software == "chatgpt" ~ "OpenAI",
+      software == "deepseek" ~ "DeepSeek",
+      software == "tongyi" ~ "Alibaba",
+      software == "gemini" ~ "Google",
+      software == "claude" ~ "Anthropic",
+      software == "Grok" ~ "xAI",
+      TRUE ~ as.character(software)
+    ),
+    Model = case_when(
+      software == "chatgpt" & model == "o1" ~ "OpenAI o1",
+      software == "chatgpt" & model == "gpt-4o" ~ "GPT-4o",
+      software == "chatgpt" & model == "gpt-4.5" ~ "GPT-4.5",
+      software == "chatgpt" & model == "gpt-o3" ~ "OpenAI o3",
+      software == "chatgpt" & model == "gpt-o4-mini" ~ "OpenAI o4-mini",
+      software == "chatgpt" & model == "gpt-o4-mini-high" ~ "OpenAI o4-mini-high",
+      software == "deepseek" & model == "V3" ~ "DeepSeek-V3",
+      software == "deepseek" & model == "R1" ~ "DeepSeek-R1",
+      software == "tongyi" & model == "2.5" ~ "Qwen 2.5",
+      software == "gemini" & str_detect(model, "2\\.5") ~ "Gemini 2.5 Pro",
+      software == "gemini" & str_detect(model, "2\\.0") ~ "Gemini 2.0 Flash",
+      software == "claude" & model == "3.7 Sonnet" ~ "Claude 3.7 Sonnet",
+      software == "claude" & str_detect(model, "Extended") ~ "Claude 3.7 Sonnet (Extended)",
+      software == "Grok" & model == "Grok 3 Think" ~ "Grok 3 Think",
+      software == "Grok" & model == "Grok 3" ~ "Grok 3",
+      TRUE ~ as.character(model)
+    ),
+    Mode = if_else(as.integer(Thinking_Model) == 1, "Thinking", "Standard")
+  ) %>%
+  group_by(Platform, Model, Mode) %>%
+  summarise(
+    n = n(),
+    M = mean(accuracy_rate, na.rm = TRUE),
+    SD = sd(accuracy_rate, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    `Overall accuracy M(SD)` = sprintf("%.2f (%.2f)", M, SD)
+  ) %>%
+  arrange(desc(M), Platform, Model) %>%
+  mutate(
+    Rank = row_number(),
+    `Used in Study 2` = case_when(
+      Rank <= 2 ~ "Top",
+      Rank >= n() - 1 ~ "Bottom",
+      TRUE ~ ""
+    )
+  ) %>%
+  select(Rank, Platform, Model, Mode, `Overall accuracy M(SD)`, `Used in Study 2`, n)
+
+tbl1
+```

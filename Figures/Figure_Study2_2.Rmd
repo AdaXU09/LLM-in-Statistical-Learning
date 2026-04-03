@@ -1,0 +1,669 @@
+---
+title: "Figure_confidence"
+author: "lily"
+date: "2025-12-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load libraries
+``` {r, message = F, warning = F}
+library(tidyverse)
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+library(ggplot2)
+library(lemon)
+library(showtext)
+library(Rmisc)
+library(gridExtra)
+library(grid)
+library(gtable)
+library(patchwork)
+```
+
+## Font and theme settings
+``` {r, message = F, warning = F}
+showtext_auto()
+showtext_opts(dpi = 600)
+
+font_add(
+  family = "Arial",
+  regular = "C:/Windows/Fonts/arial.ttf"
+)
+
+theme_set(theme_classic(base_family = "Arial"))
+```
+
+## Load utilities and import data
+``` {r, message = F, warning = F}
+source("plot_util_test.R")
+
+data_raw <- read_excel("data/Plot_Data.xlsx", sheet = "raw_data")
+
+data_filtered <- data_raw[data_raw$stage1_task0_accuracy < 0.9, ]
+
+data_filtered <- data_filtered %>%
+  mutate(across(participant_id:last_col(), ~ replace(.x, duration < 180, NA)))
+```
+
+## Figure 2a: Confidence across stages (follow-up completers)
+``` {r, message = F, warning = F}
+data_filtered1 <- data_filtered[, c(
+  "Label",
+  "stage1_task0_confidence",
+  "stage2_task0_confidence",
+  "stage3_task0_confidence",
+  "follow_task0_confidence"
+)]
+
+data_filtered2 <- data_filtered1[!is.na(data_filtered1$follow_task0_confidence), ]
+
+df_21 <- data_process_result_new(
+  data = data_filtered2,
+  label_col = c(
+    "Label",
+    "stage1_task0_confidence",
+    "stage2_task0_confidence",
+    "stage3_task0_confidence",
+    "follow_task0_confidence"
+  ),
+  new_columns_name = c("Label", "Stage1", "Stage2", "Stage3", "Follow"),
+  data_columns = c("Stage1", "Stage2", "Stage3", "Follow"),
+  one_names_values = "Phase",
+  one_values_values = "Confidence",
+  after_columns_name = c(
+    "Stage 1: Independent work",
+    "Stage 2: LLM-guided practice",
+    "Stage 3: LLM-provided answers",
+    "Follow-up"
+  ),
+  phase_subtitle_name = c(
+    "Independent \n work",
+    "LLM-guided \n practice",
+    "LLM-provided \n answers",
+    ""
+  ),
+  phase_short_name = c("Stage 1", "Stage 2", "Stage 3", "Follow-up"),
+  groupby_col = "Label"
+)
+
+df_21_1 <- df_21$stats_summary %>%
+  mutate(
+    Phase_short = factor(Phase_short, levels = c("Stage 1", "Stage 2", "Stage 3", "Follow-up")),
+    Label = factor(Label, levels = c("AI", "AI Human", "Human")),
+    x_plot = as.numeric(Phase_short),
+    mean_pct = mean,
+    ci_pct = ci95
+  )
+
+fig21 <- ggplot(df_21_1, aes(x = x_plot, y = mean_pct)) +
+  geom_hline(yintercept = 3, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  annotate(
+    "text",
+    x = 4, y = 3, label = "Neutral",
+    vjust = -0.55, hjust = 0.55,
+    size = 13 / .pt, color = "black"
+  ) +
+  annotate(
+    "text",
+    x = 4.05, y = 4.8, label = "Delayed test",
+    vjust = 0, hjust = 0.7,
+    size = 13 / .pt, color = "black"
+  ) +
+  geom_vline(xintercept = 3.5, color = "gray50", linewidth = 0.5) +
+  geom_errorbar(
+    aes(ymin = mean_pct - ci_pct, ymax = mean_pct + ci_pct, color = Label),
+    width = 0, size = 0.5, alpha = 0.75, show.legend = FALSE
+  ) +
+  geom_line(
+    aes(group = Label, color = Label),
+    size = 0.5, alpha = 0.75, show.legend = FALSE
+  ) +
+  geom_point(aes(fill = Label, color = Label, shape = Label), size = 4, stroke = 1) +
+  scale_color_manual(
+    values = c("AI" = "#0173B2", "AI Human" = "#029E73", "Human" = "#DE8F05"),
+    labels = c("AI" = "AI", "AI Human" = "AI + Human", "Human" = "Human")
+  ) +
+  scale_fill_manual(
+    values = c("AI" = "#0173B2", "AI Human" = "#029E73", "Human" = "#DE8F05"),
+    labels = c("AI" = "AI", "AI Human" = "AI + Human", "Human" = "Human")
+  ) +
+  scale_shape_manual(
+    values = c("AI" = 21, "AI Human" = 22, "Human" = 24),
+    labels = c("AI" = "AI", "AI Human" = "AI + Human", "Human" = "Human")
+  ) +
+  scale_x_continuous(
+    breaks = 1:4,
+    labels = c("Stage 1", "Stage 2", "Stage 3", "Follow-up")
+  ) +
+  scale_y_continuous(breaks = seq(1, 5, 1), limits = c(1, 5), expand = c(0, 0)) +
+  geom_segment(x = 1, xend = 2, y = 1, yend = 1, color = "black", linewidth = 0.5) +
+  geom_segment(x = 2, xend = 3, y = 1, yend = 1, color = "black", linewidth = 0.5) +
+  geom_segment(x = 3, xend = 4, y = 1, yend = 1, color = "black", linewidth = 0.5) +
+  labs(
+    title = "Self-reported confidence in own answer across stages\n(Follow-up completers only, N = 82)",
+    x = NULL,
+    y = "Confidence in answer"
+  ) +
+  coord_cartesian(ylim = c(1, 5), clip = "off") +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.line.x = element_blank(),
+    text = element_text(family = "sans"),
+    plot.title = element_text(hjust = 0.5, size = 13, face = "bold"),
+    axis.ticks.length = unit(8, "points"),
+    axis.ticks = element_line(colour = "black", size = 0.5),
+    axis.line = element_line(colour = "black", size = 0.5),
+    axis.title.x = element_text(face = "plain", size = 13, margin = margin(t = 10)),
+    axis.title.y = element_text(face = "plain", size = 13, margin = margin(r = 10)),
+    axis.text.x = element_text(face = "plain", size = 13, color = "black", margin = margin(t = 7)),
+    axis.text.y = element_text(face = "plain", size = 13, color = "black", margin = margin(r = 7)),
+    legend.position = c(0.16, 0.90),
+    legend.background = element_rect(fill = "transparent", color = NA),
+    legend.box.background = element_rect(fill = "transparent", color = NA),
+    legend.key = element_rect(fill = "transparent", color = NA),
+    legend.text = element_text(size = 13),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank()
+  ) +
+  guides(
+    color = guide_legend(
+      title = NULL,
+      override.aes = list(
+        fill = c("AI" = "#0173B2", "AI Human" = "#029E73", "Human" = "#DE8F05"),
+        linetype = "solid",
+        color = c("AI" = "#0173B2", "AI Human" = "#029E73", "Human" = "#DE8F05"),
+        shape = c("AI" = 21, "AI Human" = 22, "Human" = 24),
+        size = 4,
+        stroke = 1
+      )
+    ),
+    shape = "none",
+    fill = "none"
+  )
+
+print(fig21)
+```
+
+## Figure 2b: Confidence attrition check (all participants vs follow-up completers)
+``` {r, message = F, warning = F}
+df_22_1 <- data_process_result_new(
+  data = data_filtered2,
+  label_col = c("stage1_task0_confidence", "stage2_task0_confidence", "stage3_task0_confidence"),
+  new_columns_name = c("Stage1", "Stage2", "Stage3"),
+  data_columns = c("Stage1", "Stage2", "Stage3"),
+  one_names_values = "Phase",
+  one_values_values = "Confidence",
+  after_columns_name = c(
+    "Stage 1: Independent work",
+    "Stage 2: LLM-guided practice",
+    "Stage 3: LLM-provided answers"
+  ),
+  phase_subtitle_name = c("Independent \n work", "LLM-guided \n practice", "LLM-provided \n answers"),
+  phase_short_name = c("Stage 1", "Stage 2", "Stage 3"),
+  groupby_col = NULL
+)
+
+df_22_2 <- data_process_result_new(
+  data = data_filtered,
+  label_col = c("stage1_task0_confidence", "stage2_task0_confidence", "stage3_task0_confidence"),
+  new_columns_name = c("Stage1", "Stage2", "Stage3"),
+  data_columns = c("Stage1", "Stage2", "Stage3"),
+  one_names_values = "Phase",
+  one_values_values = "Confidence",
+  after_columns_name = c(
+    "Stage 1: Independent work",
+    "Stage 2: LLM-guided practice",
+    "Stage 3: LLM-provided answers"
+  ),
+  phase_subtitle_name = c("Independent \n work", "LLM-guided \n practice", "LLM-provided \n answers"),
+  phase_short_name = c("Stage 1", "Stage 2", "Stage 3"),
+  groupby_col = NULL
+)
+
+df_22_1_plot <- df_22_1$stats_summary
+df_22_2_plot <- df_22_2$stats_summary
+
+df_22_2_plot$Label <- "All participants"
+df_22_1_plot$Label <- "Follow-up completers"
+
+df_combined <- bind_rows(df_22_2_plot, df_22_1_plot) %>%
+  mutate(
+    Phase_short = factor(Phase_short, levels = c("Stage 1", "Stage 2", "Stage 3")),
+    Label = factor(Label, levels = c("Follow-up completers", "All participants")),
+    x_plot = as.numeric(Phase_short),
+    mean_pct = mean,
+    ci_pct = ci95
+  ) %>%
+  filter(!is.na(x_plot))
+
+fig22 <- ggplot(df_combined, aes(x = x_plot, y = mean_pct)) +
+  geom_hline(yintercept = 3, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  geom_line(aes(group = Label, linetype = Label), color = "black", size = 0.5, alpha = 1) +
+  geom_errorbar(
+    aes(ymin = mean_pct - ci_pct, ymax = mean_pct + ci_pct),
+    color = "black", width = 0, size = 0.5, alpha = 1
+  ) +
+  geom_point(aes(shape = Label, fill = Label), color = "black", size = 4, stroke = 1) +
+  scale_shape_manual(
+    values = c("All participants" = 21, "Follow-up completers" = 21),
+    labels = c(
+      "All participants" = "All participants (N = 175)",
+      "Follow-up completers" = "Follow-up completers (N = 82)"
+    )
+  ) +
+  scale_fill_manual(
+    values = c("All participants" = "white", "Follow-up completers" = "black"),
+    labels = c(
+      "All participants" = "All participants (N = 175)",
+      "Follow-up completers" = "Follow-up completers (N = 82)"
+    )
+  ) +
+  scale_linetype_manual(
+    values = c("All participants" = "dashed", "Follow-up completers" = "solid"),
+    labels = c(
+      "All participants" = "All participants (N = 175)",
+      "Follow-up completers" = "Follow-up completers (N = 82)"
+    )
+  ) +
+  scale_x_continuous(
+    breaks = 1:3,
+    labels = c("Stage 1", "Stage 2", "Stage 3"),
+    expand = c(0.05, 0.05)
+  ) +
+  scale_y_continuous(breaks = seq(1, 5, 1), limits = c(1, 5), expand = c(0, 0)) +
+  geom_segment(x = 1, xend = 2, y = 1, yend = 1, color = "black", linewidth = 0.5) +
+  geom_segment(x = 2, xend = 3, y = 1, yend = 1, color = "black", linewidth = 0.5) +
+  labs(
+    title = "Attrition check (collapsed across labels)",
+    x = NULL,
+    y = "Confidence in answer"
+  ) +
+  coord_cartesian(ylim = c(1, 5), clip = "off") +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.line.x = element_blank(),
+    text = element_text(family = "sans"),
+    plot.title = element_text(hjust = 0.5, size = 13, face = "bold"),
+    axis.ticks.length = unit(8, "points"),
+    axis.ticks = element_line(colour = "black", size = 0.5),
+    axis.line = element_line(colour = "black", size = 0.5),
+    axis.title.x = element_text(face = "plain", size = 13, margin = margin(t = 10)),
+    axis.title.y = element_text(face = "plain", size = 13, margin = margin(r = 10)),
+    axis.text.x = element_text(face = "plain", size = 13, color = "black", margin = margin(t = 7)),
+    axis.text.y = element_text(face = "plain", size = 13, color = "black", margin = margin(r = 7)),
+    legend.position = c(0.32, 0.94),
+    legend.title = element_blank(),
+    legend.background = element_rect(fill = "transparent", color = NA),
+    legend.box.background = element_rect(fill = "transparent", color = NA),
+    legend.key = element_rect(fill = "transparent", color = NA),
+    legend.text = element_text(size = 13),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank()
+  ) +
+  guides(
+    shape = guide_legend(override.aes = list(linetype = NA, size = 4, stroke = 1)),
+    fill = guide_legend(override.aes = list(linetype = NA, size = 4, stroke = 1)),
+    linetype = guide_legend(override.aes = list(linetype = NA, size = 4, stroke = 1))
+  )
+
+print(fig22)
+```
+
+## Figure 2c: Willingness to accept materials (Stage 2 vs Stage 3)
+``` {r, message = F, warning = F}
+data_filtered3_1 <- data_filtered[, c(
+  "Label",
+  "stage2_task0_willing",
+  "stage3_task0_willing",
+  "follow_AI_Self_Efficacy"
+)]
+
+data_filtered3_1_1 <- data_filtered3_1[!is.na(data_filtered3_1$follow_AI_Self_Efficacy), ]
+
+data_filtered_3_1 <- data_filtered3_1_1[, c("Label", "stage2_task0_willing", "stage3_task0_willing")]
+
+res_data_new <- data_process_result(
+  data = data_filtered_3_1,
+  label_col = c("Label", "stage2_task0_willing", "stage3_task0_willing"),
+  new_columns_name = c("Label", "Stage 2", "Stage 3"),
+  data_columns = c("Stage 2", "Stage 3"),
+  one_names_values = "Phase",
+  one_values_values = "Rating",
+  after_columns_name = c("Stage 2", "Stage 3"),
+  phase_subtitle_name = c("", ""),
+  phase_short_name = c("Stage 2", "Stage 3"),
+  groupby_col = "Label"
+)
+
+compters_only <- res_data_new$stats_summary
+
+data23_1 <- data_filtered[, c("ID_x", "Label", "stage2_task0_willing")]
+colnames(data23_1) <- c("ID_x", "Label", "Willing")
+data23_1$Phase <- "Stage 2"
+
+data23_2 <- data_filtered[, c("ID_x", "Label", "stage3_task0_willing")]
+colnames(data23_2) <- c("ID_x", "Label", "Willing")
+data23_2$Phase <- "Stage 3"
+
+my_data <- bind_rows(data23_1, data23_2)
+my_data$Phase <- factor(my_data$Phase, levels = c("Stage 2", "Stage 3"))
+my_data$Label <- factor(my_data$Label, levels = c("AI", "AI Human", "Human"))
+
+label_map <- c("AI" = "AI", "AI Human" = "AI + Human", "Human" = "Human")
+
+fig23 <- ggplot(my_data, aes(x = Phase, y = Willing)) +
+  geom_line(aes(group = ID_x), color = "gray80", alpha = 0.5, size = 0.5) +
+  geom_hline(yintercept = 3, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  stat_summary(fun = mean, geom = "line", linetype = "dashed", aes(group = 1, color = Label), size = 0.5) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", aes(color = Label), width = 0, size = 0.5) +
+  geom_errorbar(
+    data = compters_only,
+    aes(y = mean, ymin = mean - ci95, ymax = mean + ci95, color = Label),
+    width = 0, size = 0.5
+  ) +
+  geom_line(
+    data = compters_only,
+    aes(y = mean, group = Label, color = Label),
+    linetype = "solid",
+    size = 0.5,
+    alpha = 0.8
+  ) +
+  stat_summary(
+    fun = mean, geom = "point",
+    shape = 21, fill = "white", stroke = 1,
+    aes(color = Label), size = 4
+  ) +
+  geom_point(
+    data = compters_only,
+    aes(y = mean, color = Label, fill = Label),
+    shape = 21, stroke = 1, size = 4
+  ) +
+  facet_wrap(~Label, nrow = 1, labeller = as_labeller(label_map)) +
+  scale_color_manual(
+    values = c("AI" = "#0173B2", "AI Human" = "#029E73", "Human" = "#DE8F05"),
+    labels = c("AI" = "AI", "AI Human" = "AI + Human", "Human" = "Human")
+  ) +
+  scale_fill_manual(
+    values = c("AI" = "#0173B2", "AI Human" = "#029E73", "Human" = "#DE8F05"),
+    labels = c("AI" = "AI", "AI Human" = "AI + Human", "Human" = "Human")
+  ) +
+  coord_cartesian(ylim = c(1, 5), clip = "off") +
+  theme_classic(base_size = 14) +
+  labs(x = NULL, y = "Willingness to accept materials") +
+  scale_y_continuous(limits = c(1, 5), breaks = seq(1, 5, 1), expand = c(0, 0)) +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(size = 13, vjust = 1.5),
+    panel.spacing = unit(-1, "cm"),
+    legend.position = "none",
+    axis.ticks.length = unit(8, "points"),
+    axis.ticks = element_line(colour = "black", size = 0.5),
+    axis.line = element_line(colour = "black", size = 0.5),
+    axis.title.x = element_text(face = "plain", size = 13, margin = margin(t = 10)),
+    axis.title.y = element_text(face = "plain", size = 13, margin = margin(r = 10)),
+    axis.text.x = element_text(face = "plain", size = 13, color = "black", margin = margin(t = 7), angle = 45, hjust = 1),
+    axis.text.y = element_text(face = "plain", size = 13, color = "black", margin = margin(r = 7))
+  ) +
+  coord_capped_cart(bottom = capped_horizontal(), left = capped_vertical())
+
+print(fig23)
+```
+
+## Figure 2d: Usefulness of materials (Stage 2 vs Stage 3)
+``` {r, message = F, warning = F}
+data_filtered3_1 <- data_filtered[, c(
+  "Label",
+  "stage2_task0_useful",
+  "stage3_task0_useful",
+  "follow_AI_Self_Efficacy"
+)]
+
+data_filtered3_1_1 <- data_filtered3_1[!is.na(data_filtered3_1$follow_AI_Self_Efficacy), ]
+
+data_filtered_3_1 <- data_filtered3_1_1[, c("Label", "stage2_task0_useful", "stage3_task0_useful")]
+
+res_data_new <- data_process_result(
+  data = data_filtered_3_1,
+  label_col = c("Label", "stage2_task0_useful", "stage3_task0_useful"),
+  new_columns_name = c("Label", "Stage 2", "Stage 3"),
+  data_columns = c("Stage 2", "Stage 3"),
+  one_names_values = "Phase",
+  one_values_values = "Rating",
+  after_columns_name = c("Stage 2", "Stage 3"),
+  phase_subtitle_name = c("", ""),
+  phase_short_name = c("Stage 2", "Stage 3"),
+  groupby_col = "Label"
+)
+
+compters_only2 <- res_data_new$stats_summary
+
+data24_1 <- data_filtered[, c("ID_x", "Label", "stage2_task0_useful")]
+colnames(data24_1) <- c("ID_x", "Label", "Useful")
+data24_1$Phase <- "Stage 2"
+
+data24_2 <- data_filtered[, c("ID_x", "Label", "stage3_task0_useful")]
+colnames(data24_2) <- c("ID_x", "Label", "Useful")
+data24_2$Phase <- "Stage 3"
+
+my_data2 <- bind_rows(data24_1, data24_2)
+my_data2$Phase <- factor(my_data2$Phase, levels = c("Stage 2", "Stage 3"))
+my_data2$Label <- factor(my_data2$Label, levels = c("AI", "AI Human", "Human"))
+
+fig24 <- ggplot(my_data2, aes(x = Phase, y = Useful)) +
+  geom_line(aes(group = ID_x), color = "gray80", alpha = 0.5, size = 0.5) +
+  geom_hline(yintercept = 3, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  stat_summary(fun = mean, geom = "line", linetype = "dashed", aes(group = 1, color = Label), size = 0.5) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", aes(color = Label), width = 0, size = 0.5) +
+  geom_errorbar(
+    data = compters_only2,
+    aes(y = mean, ymin = mean - ci95, ymax = mean + ci95, color = Label),
+    width = 0, size = 0.5
+  ) +
+  geom_line(
+    data = compters_only2,
+    aes(y = mean, group = Label, color = Label),
+    linetype = "solid",
+    size = 0.5,
+    alpha = 0.8
+  ) +
+  stat_summary(
+    fun = mean, geom = "point",
+    shape = 21, fill = "white", stroke = 1,
+    aes(color = Label), size = 4
+  ) +
+  geom_point(
+    data = compters_only2,
+    aes(y = mean, color = Label, fill = Label),
+    shape = 21, stroke = 1, size = 4
+  ) +
+  facet_wrap(~Label, nrow = 1, labeller = as_labeller(label_map)) +
+  scale_color_manual(
+    values = c("AI" = "#0173B2", "AI Human" = "#029E73", "Human" = "#DE8F05"),
+    labels = c("AI" = "AI", "AI Human" = "AI + Human", "Human" = "Human")
+  ) +
+  scale_fill_manual(
+    values = c("AI" = "#0173B2", "AI Human" = "#029E73", "Human" = "#DE8F05"),
+    labels = c("AI" = "AI", "AI Human" = "AI + Human", "Human" = "Human")
+  ) +
+  theme_classic(base_size = 14) +
+  labs(x = NULL, y = "Usefulness of materials") +
+  scale_y_continuous(limits = c(1, 5), breaks = seq(1, 5, 1), expand = c(0, 0)) +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(size = 13, vjust = 1.5),
+    panel.spacing = unit(-1, "cm"),
+    legend.position = "none",
+    axis.ticks.length = unit(8, "points"),
+    axis.ticks = element_line(colour = "black", size = 0.5),
+    axis.line = element_line(colour = "black", size = 0.5),
+    axis.title.x = element_text(face = "plain", size = 13, margin = margin(t = 10)),
+    axis.title.y = element_text(face = "plain", size = 13, margin = margin(r = 10)),
+    axis.text.x = element_text(face = "plain", size = 13, color = "black", margin = margin(t = 7), angle = 45, hjust = 1),
+    axis.text.y = element_text(face = "plain", size = 13, color = "black", margin = margin(r = 7))
+  ) +
+  coord_capped_cart(bottom = capped_horizontal(), left = capped_vertical())
+
+print(fig24)
+```
+
+## P-value tables
+``` {r, message = F, warning = F}
+p_values_c <- data.frame(
+  All = "Completers",
+  `italic(p)~'= .024'` = "italic(p)~'= .143'",
+  `italic(p)~'= .100'` = "italic(p)~'= .106'",
+  `italic(p)~'= .359'` = "italic(p)~'= .992'",
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+
+p_values_d <- data.frame(
+  ` ` = " ",
+  `italic(p)~'= .023'` = "italic(p)~'= .217'",
+  `italic(p)~'= .069'` = "italic(p)~'= .014'",
+  `italic(p)~'= .810'` = "italic(p)~'= .302'",
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+
+apa_theme <- ttheme_minimal(
+  base_size = 13,
+  core = list(
+    fg_params = list(hjust = 0.5, x = 0.5, parse = TRUE),
+    bg_params = list(fill = "white"),
+    padding = unit(c(1, 6), "mm")
+  ),
+  colhead = list(
+    fg_params = list(hjust = 0.5, x = 0.5, parse = TRUE),
+    bg_params = list(fill = "white"),
+    padding = unit(c(1, 8), "mm")
+  )
+)
+
+table_c <- tableGrob(p_values_c, rows = NULL, theme = apa_theme)
+table_d <- tableGrob(p_values_d, rows = NULL, theme = apa_theme)
+
+add_apa_lines <- function(table) {
+  table <- gtable_add_grob(
+    table,
+    grobs = segmentsGrob(
+      y1 = unit(1, "npc"), y0 = unit(1, "npc"),
+      x0 = unit(0.22, "npc"), x1 = unit(0.95, "npc"),
+      gp = gpar(lwd = 2.5)
+    ),
+    t = 1, b = 1, l = 1, r = ncol(table)
+  )
+
+  table <- gtable_add_grob(
+    table,
+    grobs = segmentsGrob(
+      y1 = unit(0, "npc"), y0 = unit(0, "npc"),
+      x0 = unit(0.22, "npc"), x1 = unit(0.95, "npc"),
+      gp = gpar(lwd = 2.5)
+    ),
+    t = nrow(table), b = nrow(table), l = 1, r = ncol(table)
+  )
+
+  table
+}
+
+left_align_first_col <- function(tbl, pad_rel = 0.02) {
+  idx <- which(tbl$layout$l == 1)
+
+  for (i in idx) {
+    g <- tbl$grobs[[i]]
+
+    if (inherits(g, "text") || inherits(g, "titleGrob")) {
+      if (!is.null(g$x)) g$x <- unit(pad_rel, "npc")
+      if (!is.null(g$hjust)) g$hjust <- 0
+    } else if (inherits(g, "gTree")) {
+      if (!is.null(g$children) && length(g$children) > 0) {
+        for (j in seq_along(g$children)) {
+          child <- g$children[[j]]
+          if (!is.null(child$x)) child$x <- unit(pad_rel, "npc")
+          if (!is.null(child$hjust)) child$hjust <- 0
+          g$children[[j]] <- child
+        }
+      }
+    }
+
+    tbl$grobs[[i]] <- g
+  }
+
+  tbl
+}
+
+table_c <- add_apa_lines(table_c)
+table_d <- add_apa_lines(table_d)
+
+col_widths <- unit.c(
+  unit(0.67, "null"),
+  unit(1, "null"),
+  unit(1, "null"),
+  unit(1, "null")
+)
+
+table_c$widths <- col_widths
+table_d$widths <- col_widths
+
+table_c <- left_align_first_col(table_c, pad_rel = 0)
+table_d <- left_align_first_col(table_d, pad_rel = 0)
+```
+
+``` {r, message = F, warning = F}
+grid.newpage()
+grid.draw(table_c)
+
+grid.newpage()
+grid.draw(table_d)
+```
+
+## Combine panels and save figure
+``` {r, message = F, warning = F}
+layout <- "
+AAABBB
+CCCDDD
+"
+
+tag_theme <- theme(
+  plot.tag = element_text(size = 13, face = "bold"),
+  plot.tag.position = c(0.01, 0.99)
+)
+
+fig21 <- fig21 + labs(tag = "a.") + tag_theme
+fig22 <- fig22 + labs(tag = "b.") + tag_theme
+fig23 <- fig23 + labs(tag = "c.") + tag_theme
+fig24 <- fig24 + labs(tag = "d.") + tag_theme
+
+common_margin <- margin(t = 5.5, r = 5.5, b = 5.5, l = 5.5)
+
+fig23 <- fig23 + theme(plot.margin = common_margin)
+fig24 <- fig24 + theme(plot.margin = common_margin)
+
+table_c_plot <- ggdraw() +
+  draw_grob(table_c, x = 0, hjust = 0.13, width = 1.1) +
+  theme(plot.margin = common_margin)
+
+table_d_plot <- ggdraw() +
+  draw_grob(table_d, x = 0, hjust = 0.13, width = 1.1) +
+  theme(plot.margin = common_margin)
+
+panel_c <- fig23 / table_c_plot + plot_layout(heights = c(1, 0.5))
+panel_d <- fig24 / table_d_plot + plot_layout(heights = c(1, 0.5))
+
+combined_fig2 <- (fig21 + fig22 + panel_c + panel_d) +
+  plot_layout(design = layout, heights = c(1, 1.5)) +
+  theme(plot.background = element_rect(fill = "white", colour = NA))
+
+print(combined_fig2)
+
+ggsave("figure/Figure_Study2_2.png", combined_fig2, width = 11, height = 10, dpi = 600, bg = "white")
+ggsave("figure/Figure_Study2_2.pdf", combined_fig2, width = 11, height = 10, dpi = 600, bg = "white")
+ggsave("figure/Figure_Study2_2.svg", combined_fig2, width = 11, height = 10, bg = "white")
+```

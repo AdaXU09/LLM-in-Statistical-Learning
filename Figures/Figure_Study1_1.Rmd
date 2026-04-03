@@ -1,0 +1,239 @@
+---
+title: "Figure_Study1_1"
+author: "Spike"
+date: "2026-01-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load libraries
+``` {r, message = F, warning = F}
+library(tidyverse)
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+library(ggplot2)
+library(lemon)
+library(ggrepel)
+library(showtext)
+library(patchwork)
+```
+
+## Font and theme settings
+``` {r, message = F, warning = F}
+showtext_auto()
+showtext_opts(dpi = 600)
+
+font_add(
+  family = "Arial",
+  regular = "C:/Windows/Fonts/arial.ttf"
+)
+
+theme_set(theme_classic(base_family = "Arial"))
+```
+
+## Import data
+``` {r, message = F, warning = F}
+df <- read_excel("data/Study_1_Objective_Data.xlsx")
+```
+
+## Model metadata
+``` {r, message = F, warning = F}
+df <- df %>%
+  mutate(model = as.character(model))
+
+model_info <- tibble(
+  model = c(
+    "o1", "gpt-4o", "V3", "R1", "2.5", "2.5 Pro(experimental)",
+    "Extended 3.7 Sonnet", "Grok 3 Think", "gpt-4.5", "3.7 Sonnet",
+    "gpt-o4-mini", "gpt-o3", "gpt-o4-mini-high", "Grok 3", "2.0 Flash"
+  ),
+  provider = c(
+    "OpenAI", "OpenAI", "DeepSeek", "DeepSeek", "Alibaba", "Google",
+    "Anthropic", "xAI", "OpenAI", "Anthropic",
+    "OpenAI", "OpenAI", "OpenAI", "xAI", "Google"
+  ),
+  mode = c(
+    "Thinking", "Standard", "Standard", "Thinking", "Standard", "Thinking",
+    "Thinking", "Thinking", "Standard", "Standard",
+    "Thinking", "Thinking", "Thinking", "Standard", "Standard"
+  ),
+  display_name = c(
+    "OpenAI o1", "GPT-4o", "DeepSeek-V3", "DeepSeek-R1", "Qwen 2.5",
+    "Gemini 2.5 Pro", "Claude 3.7 Sonnet (Extended)", "Grok 3 Think",
+    "GPT-4.5", "Claude 3.7 Sonnet", "OpenAI o4-mini", "OpenAI o3",
+    "OpenAI o4-mini-high", "Grok 3", "Gemini 2.0 Flash"
+  )
+)
+```
+
+## Model-level summary statistics
+``` {r, message = F, warning = F}
+model_summary <- df %>%
+  group_by(model) %>%
+  summarise(
+    accuracy = mean(accuracy_rate),
+    stability_sd = sd(accuracy_rate),
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  left_join(model_info, by = "model") %>%
+  arrange(desc(accuracy), stability_sd) %>%
+  mutate(
+    rank = row_number(),
+    highlight = case_when(
+      rank <= 2 ~ "Top 2",
+      rank >= n() - 1 ~ "Bottom 2",
+      TRUE ~ "Other"
+    )
+  )
+```
+
+## Task-level data preparation
+``` {r, message = F, warning = F}
+task_data <- df %>%
+  left_join(model_info, by = "model") %>%
+  mutate(
+    task = case_when(
+      question == "Q1" ~ "P-value",
+      question == "Q2" ~ "95% CI",
+      question == "Q3" ~ "Study Comparison"
+    ),
+    task = factor(task, levels = c("P-value", "95% CI", "Study Comparison"))
+  )
+```
+
+## Color settings
+``` {r, message = F, warning = F}
+provider_colors <- c(
+  "OpenAI" = "#0072B2",
+  "Google" = "#D55E00",
+  "Anthropic" = "#009E73",
+  "DeepSeek" = "#CC79A7",
+  "xAI" = "#E69F00",
+  "Alibaba" = "#56B4E9"
+)
+```
+
+## Panel (a): Accuracy vs Stability
+``` {r, message = F, warning = F}
+model_summary$display_name <- gsub("[\u2013\u2014]", "-", model_summary$display_name)
+model_order <- model_summary$display_name
+
+model_summary <- model_summary %>%
+  mutate(
+    nudge_x = case_when(
+      display_name == "GPT-4o" ~ 0.007,
+      display_name == "OpenAI o1" ~ 0.007,
+      display_name == "Grok 3" ~ 0.041,
+      display_name == "Gemini 2.0 Flash" ~ 0.109,
+      TRUE ~ 0
+    ),
+    nudge_y = case_when(
+      display_name == "GPT-4o" ~ 0.012,
+      display_name == "OpenAI o1" ~ 0.024,
+      display_name == "Grok 3" ~ -0.01,
+      display_name == "Gemini 2.0 Flash" ~ 0.0105,
+      TRUE ~ 0
+    ),
+    label_x = accuracy + nudge_x,
+    label_y = stability_sd + nudge_y,
+    mode = factor(mode, levels = c("Standard", "Thinking"))
+  )
+
+panel_a <- ggplot(
+  model_summary,
+  aes(x = accuracy, y = stability_sd, color = provider, shape = mode)
+) +
+  geom_point(size = 4, stroke = 1) +
+  geom_text(
+    data = filter(model_summary, highlight != "Other"),
+    aes(x = label_x, y = label_y, label = display_name),
+    size = 13 / .pt,
+    hjust = 1,
+    color = "black"
+  ) +
+  scale_color_manual(values = provider_colors) +
+  scale_shape_manual(values = c("Standard" = 1, "Thinking" = 17)) +
+  scale_x_continuous(
+    limits = c(0.75, 1.01),
+    breaks = seq(0.75, 1.0, 0.05),
+    labels = scales::number_format(accuracy = 1, scale = 100)
+  ) +
+  scale_y_continuous(
+    limits = c(0, 0.28),
+    breaks = seq(0, 0.28, 0.07)
+  ) +
+  coord_cartesian(clip = "off") +
+  labs(x = "Accuracy (%)", y = "Stability (SD)") +
+  theme_classic(base_size = 14)
+
+panel_a
+```
+
+## Panel (b): Task-wise accuracy
+``` {r, message = F, warning = F}
+task_summary <- task_data %>%
+  group_by(display_name, provider, mode, task) %>%
+  summarise(accuracy = mean(accuracy_rate), .groups = "drop") %>%
+  mutate(display_name = factor(display_name, levels = rev(model_order)))
+
+panel_b <- ggplot(
+  task_summary,
+  aes(x = accuracy, y = display_name, shape = task)
+) +
+  geom_line(aes(group = display_name), color = "gray70", linewidth = 0.5) +
+  geom_point(size = 4, stroke = 1, fill = "white") +
+  scale_shape_manual(
+    values = c("P-value" = 24, "95% CI" = 22, "Study Comparison" = 21)
+  ) +
+  scale_x_continuous(
+    limits = c(0.35, 1.05),
+    breaks = seq(0.4, 1.0, 0.15),
+    labels = scales::number_format(accuracy = 1, scale = 100)
+  ) +
+  labs(x = "Accuracy (%)", y = NULL) +
+  theme_classic(base_size = 14)
+
+panel_b
+```
+
+## Combine panels and save figure
+``` {r, message = F, warning = F}
+combined_figure <- panel_a + panel_b +
+  plot_layout(widths = c(1.2, 1)) +
+  plot_annotation(tag_levels = "a", tag_suffix = ".") &
+  theme(plot.tag = element_text(size = 13, face = "bold"))
+
+combined_figure
+
+ggsave(
+  "figure/Figure_Study1_1.pdf",
+  combined_figure,
+  width = 14,
+  height = 7,
+  dpi = 600,
+  bg = "white"
+)
+
+ggsave(
+  "figure/Figure_Study1_1.png",
+  combined_figure,
+  width = 14,
+  height = 7,
+  dpi = 600,
+  bg = "white"
+)
+
+ggsave(
+  "figure/Figure_Study1_1.svg",
+  combined_figure,
+  width = 14,
+  height = 7,
+  bg = "white"
+)
+```

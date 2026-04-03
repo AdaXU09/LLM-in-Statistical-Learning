@@ -1,0 +1,451 @@
+---
+title: "Study_2_drop_or_not_comparison"
+author: "Spike"
+date: "2025-10-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Study 2 Results
+## Load Packages
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+library(broom)
+library(car)
+library(DescTools)
+library(dplyr)
+library(DT)
+library(effectsize)
+library(emmeans)
+library(ggplot2)
+library(janitor)
+library(lme4)
+library(lmerTest)
+library(lsr)
+library(MASS)
+library(openxlsx)
+library(ordinal)
+library(performance)
+library(readxl)
+library(stringr)
+library(tidyr)
+library(report)
+library(interactions)
+```
+
+## Data Preprocessing
+```{r, message=FALSE, warning=FALSE, echo=TRUE}
+# Load Data
+df <- read_xlsx("data/Study_2_Full_Data.xlsx")
+```
+
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+# Create a named vector to define the new column names
+# The format is: "new_name" = "old_name"
+rename_vars <- c(
+  "Pre_GLAT_Objective_AI_Literacy",
+  "Pre_AILS_CCS_Subjective_AI_Literacy",
+  "Pre_AI_Trust",
+  "Pre_AI_Usefulness",
+  "Pre_AI_Affect",
+  "Pre_AI_Self_Efficacy",
+  "Pre_Behavioral_Intention",
+  
+  "stage1_task0_accuracy",
+  "stage1_task1_accuracy",
+  "stage1_task2_accuracy",
+  "stage1_task3_accuracy",
+  "stage2_task0_accuracy",
+  "stage2_task1_accuracy",
+  "stage2_task2_accuracy",
+  "stage2_task3_accuracy",
+  "stage3_task0_accuracy",
+  "stage3_task1_accuracy",
+  "stage3_task2_accuracy",
+  "stage3_task3_accuracy",
+  
+  "stage1_task0_confidence",
+  "stage1_task1_confidence",
+  "stage1_task2_confidence",
+  "stage1_task3_confidence",
+  "stage2_task0_confidence",
+  "stage2_task1_confidence",
+  "stage2_task2_confidence",
+  "stage2_task3_confidence",
+  "stage3_task0_confidence",
+  "stage3_task1_confidence",
+  "stage3_task2_confidence",
+  "stage3_task3_confidence",
+
+  "stage2_task0_willing",
+  "stage2_task1_willing",
+  "stage2_task2_willing",
+  "stage2_task3_willing",
+  "stage3_task0_willing",
+  "stage3_task1_willing",
+  "stage3_task2_willing",
+  "stage3_task3_willing",
+
+  "stage2_task0_useful",
+  "stage2_task1_useful",
+  "stage2_task2_useful",
+  "stage2_task3_useful",
+  "stage3_task0_useful",
+  "stage3_task1_useful",
+  "stage3_task2_useful",
+  "stage3_task3_useful",
+
+  "Post_AI_Trust",
+  "Post_AI_Usefulness",
+  "Post_AI_Affect",
+  "Post_Behavioral_Intention"
+)
+
+# Convert the 'Label' column into a factor data type
+df$Label <- factor(df$Label, levels = c("AI", "AI Human", "Human"))
+```
+
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+ggplot(df, aes(x = stage1_task0_accuracy)) +
+  geom_histogram(binwidth = 0.05, fill = "skyblue", color = "black") +
+  stat_bin(binwidth=0.05, geom="text", aes(label=..count..), vjust=-0.3) +
+  scale_x_continuous(breaks = seq(0, 1, by = 0.05), labels = sprintf("%.2f", seq(0, 1, by = 0.05))) +
+  labs(title = "Distribution of stage1_task0_accuracy", x = "stage1_task0_accuracy", y = "Frequency") +
+  theme(axis.text.x = element_text(angle=45, hjust=1))
+```
+
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+Count <- sum(df$stage1_task0_accuracy >= 0.9)
+Count
+
+df <- df %>%
+  filter(stage1_task0_accuracy < 0.9)
+```
+
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+# Statistical Background: 1-8 scale -> 3-level factor
+df$Stats_Background <- cut(
+  as.numeric(as.character(df$Stats_Background)),
+  breaks = c(1, 3, 5, 8),
+  labels = c("Low", "Medium", "High"),
+  right = TRUE,
+  include.lowest = TRUE
+)
+
+df$Used_LLM_Frequency <- forcats::fct_collapse(
+  as.character(df$Used_LLM_Frequency),
+  Rarely = c("Never", "Less than once a month", "1–3 times per month"),
+  Often  = c("Weekly", "Daily")
+)
+df$Used_LLM_Hours <- forcats::fct_collapse(
+  as.character(df$Used_LLM_Hours),
+  None = "0",
+  Low  = c("1–5", "6–10"),
+  High = c("11–20", ">20")
+)
+```
+
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+summary(df$Label)
+```
+
+## Drop-or-not Test
+### Accuracy
+#### Descriptive
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(stage1_task0_accuracy, na.rm=TRUE), 2),
+    SD = round(sd(stage1_task0_accuracy, na.rm=TRUE), 2),
+  )
+drop_table
+
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(stage2_task0_accuracy, na.rm=TRUE), 2),
+    SD = round(sd(stage2_task0_accuracy, na.rm=TRUE), 2),
+  )
+drop_table
+
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(stage3_task0_accuracy, na.rm=TRUE), 2),
+    SD = round(sd(stage3_task0_accuracy, na.rm=TRUE), 2),
+  )
+drop_table
+```
+
+#### T-Tests
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+cat("Stage 1\n")
+t.test(df$stage1_task0_accuracy~df$drop)
+cat("Stage 2\n")
+t.test(df$stage2_task0_accuracy~df$drop)
+cat("Stage 3\n")
+t.test(df$stage3_task0_accuracy~df$drop)
+```
+
+### Confidence
+#### Descriptive
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(stage1_task0_confidence, na.rm=TRUE), 2),
+    SD = round(sd(stage1_task0_confidence, na.rm=TRUE), 2),
+  )
+drop_table
+
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(stage2_task0_confidence, na.rm=TRUE), 2),
+    SD = round(sd(stage2_task0_confidence, na.rm=TRUE), 2),
+  )
+drop_table
+
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(stage3_task0_confidence, na.rm=TRUE), 2),
+    SD = round(sd(stage3_task0_confidence, na.rm=TRUE), 2),
+  )
+drop_table
+```
+
+#### T-Tests
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+cat("Stage 1\n")
+t.test(df$stage1_task0_confidence~df$drop)
+cat("Stage 2\n")
+t.test(df$stage2_task0_confidence~df$drop)
+cat("Stage 3\n")
+t.test(df$stage3_task0_confidence~df$drop)
+```
+
+### AI Trust
+#### Descriptive
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Pre_AI_Trust, na.rm=TRUE), 2),
+    SD = round(sd(Pre_AI_Trust, na.rm=TRUE), 2),
+  )
+drop_table
+
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Post_AI_Trust, na.rm=TRUE), 2),
+    SD = round(sd(Post_AI_Trust, na.rm=TRUE), 2),
+  )
+drop_table
+```
+
+#### T-Tests
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+cat("Pre AI Trust\n")
+t.test(df$Pre_AI_Trust~df$drop)
+cat("Post AI Trust\n")
+t.test(df$Post_AI_Trust~df$drop)
+```
+
+### AI Affect
+#### Descriptive
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Pre_AI_Affect, na.rm=TRUE), 2),
+    SD = round(sd(Pre_AI_Affect, na.rm=TRUE), 2),
+  )
+drop_table
+
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Post_AI_Affect, na.rm=TRUE), 2),
+    SD = round(sd(Post_AI_Affect, na.rm=TRUE), 2),
+  )
+drop_table
+```
+
+#### T-Tests
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+cat("Pre AI Affect\n")
+t.test(df$Pre_AI_Affect~df$drop)
+cat("Post AI Affect\n")
+t.test(df$Post_AI_Affect~df$drop)
+```
+
+### AI Affect
+#### Descriptive
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Pre_AI_Affect, na.rm=TRUE), 2),
+    SD = round(sd(Pre_AI_Affect, na.rm=TRUE), 2),
+  )
+drop_table
+
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Post_AI_Affect, na.rm=TRUE), 2),
+    SD = round(sd(Post_AI_Affect, na.rm=TRUE), 2),
+  )
+drop_table
+```
+
+#### T-Tests
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+cat("Pre AI Affect\n")
+t.test(df$Pre_AI_Affect~df$drop)
+cat("Post AI Affect\n")
+t.test(df$Post_AI_Affect~df$drop)
+```
+
+### AI Affect
+#### Descriptive
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Pre_AI_Affect, na.rm=TRUE), 2),
+    SD = round(sd(Pre_AI_Affect, na.rm=TRUE), 2),
+  )
+drop_table
+
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Post_AI_Affect, na.rm=TRUE), 2),
+    SD = round(sd(Post_AI_Affect, na.rm=TRUE), 2),
+  )
+drop_table
+```
+
+#### T-Tests
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+cat("Pre AI Affect\n")
+t.test(df$Pre_AI_Affect~df$drop)
+cat("Post AI Affect\n")
+t.test(df$Post_AI_Affect~df$drop)
+```
+
+### AI Usefulness
+#### Descriptive
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Pre_AI_Usefulness, na.rm=TRUE), 2),
+    SD = round(sd(Pre_AI_Usefulness, na.rm=TRUE), 2),
+  )
+drop_table
+
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Post_AI_Usefulness, na.rm=TRUE), 2),
+    SD = round(sd(Post_AI_Usefulness, na.rm=TRUE), 2),
+  )
+drop_table
+```
+
+#### T-Tests
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+cat("Pre AI Usefulness\n")
+t.test(df$Pre_AI_Usefulness~df$drop)
+cat("Post AI Usefulness\n")
+t.test(df$Post_AI_Usefulness~df$drop)
+```
+
+### Behavior Intention
+#### Descriptive
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Pre_Behavioral_Intention, na.rm=TRUE), 2),
+    SD = round(sd(Pre_Behavioral_Intention, na.rm=TRUE), 2),
+  )
+drop_table
+
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Post_Behavioral_Intention, na.rm=TRUE), 2),
+    SD = round(sd(Post_Behavioral_Intention, na.rm=TRUE), 2),
+  )
+drop_table
+```
+
+#### T-Tests
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+cat("Pre Behavior Intention\n")
+t.test(df$Pre_Behavioral_Intention~df$drop)
+cat("Post Behavior Intention\n")
+t.test(df$Post_Behavioral_Intention~df$drop)
+```
+
+### AI Efficacy
+#### Descriptive
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Pre_AI_Self_Efficacy, na.rm=TRUE), 2),
+    SD = round(sd(Pre_AI_Self_Efficacy, na.rm=TRUE), 2),
+  )
+drop_table
+```
+
+#### T-Tests
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+cat("Pre Efficacy\n")
+t.test(df$Pre_AI_Self_Efficacy~df$drop)
+```
+
+### Objective Literacy
+#### Descriptive
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Pre_GLAT_Objective_AI_Literacy, na.rm=TRUE), 2),
+    SD = round(sd(Pre_GLAT_Objective_AI_Literacy, na.rm=TRUE), 2),
+  )
+drop_table
+```
+
+#### T-Tests
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+cat("Pre Objective Literacy\n")
+t.test(df$Pre_GLAT_Objective_AI_Literacy~df$drop)
+```
+
+### Subjective Literacy
+#### Descriptive
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+drop_table <- df %>%
+  group_by(drop) %>%
+  summarise(
+    Mean = round(mean(Pre_AILS_CCS_Subjective_AI_Literacy, na.rm=TRUE), 2),
+    SD = round(sd(Pre_AILS_CCS_Subjective_AI_Literacy, na.rm=TRUE), 2),
+  )
+drop_table
+```
+
+#### T-Tests
+``` {r, message=FALSE, warning=FALSE, echo=TRUE}
+cat("Pre Subjective Literacy\n")
+t.test(df$Pre_AILS_CCS_Subjective_AI_Literacy~df$drop)
+```

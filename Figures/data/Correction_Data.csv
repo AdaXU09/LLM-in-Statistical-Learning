@@ -1,0 +1,147 @@
+ID,Label,Group,Measure,Measure_Raw
+4,Human,Early-corrected,66.6666667,0.666666667
+4,Human,Late-corrected,33.3333333,0.333333333
+11,AI,Early-corrected,0,0
+11,AI,Late-corrected,14.2857143,0.142857143
+12,AI,Early-corrected,0,0
+12,AI,Late-corrected,25,0.25
+16,AI,Early-corrected,100,1
+16,AI,Late-corrected,33.3333333,0.333333333
+21,AI,Early-corrected,100,1
+21,AI,Late-corrected,28.5714286,0.285714286
+33,AI + Human,Early-corrected,80,0.8
+33,AI + Human,Late-corrected,66.6666667,0.666666667
+39,Human,Early-corrected,0,0
+39,Human,Late-corrected,30,0.3
+41,Human,Early-corrected,75,0.75
+41,Human,Late-corrected,100,1
+61,AI + Human,Early-corrected,50,0.5
+61,AI + Human,Late-corrected,0,0
+63,AI,Early-corrected,66.6666667,0.666666667
+63,AI,Late-corrected,50,0.5
+64,Human,Early-corrected,80,0.8
+64,Human,Late-corrected,60,0.6
+65,AI,Early-corrected,66.6666667,0.666666667
+65,AI,Late-corrected,57.1428571,0.571428571
+66,AI + Human,Early-corrected,100,1
+66,AI + Human,Late-corrected,0,0
+91,Human,Early-corrected,20,0.2
+91,Human,Late-corrected,100,1
+92,AI + Human,Early-corrected,50,0.5
+92,AI + Human,Late-corrected,50,0.5
+98,Human,Early-corrected,100,1
+98,Human,Late-corrected,0,0
+101,AI + Human,Early-corrected,50,0.5
+101,AI + Human,Late-corrected,50,0.5
+103,AI,Early-corrected,100,1
+103,AI,Late-corrected,30,0.3
+109,AI,Early-corrected,100,1
+109,AI,Late-corrected,80,0.8
+115,Human,Early-corrected,71.4285714,0.714285714
+115,Human,Late-corrected,40,0.4
+118,Human,Late-corrected,15.3846154,0.153846154
+119,AI,Late-corrected,100,1
+120,Human,Early-corrected,100,1
+120,Human,Late-corrected,0,0
+121,AI,Early-corrected,100,1
+121,AI,Late-corrected,75,0.75
+122,Human,Early-corrected,80,0.8
+122,Human,Late-corrected,100,1
+123,AI + Human,Early-corrected,92.8571429,0.928571429
+126,AI + Human,Late-corrected,50,0.5
+129,Human,Early-corrected,100,1
+129,Human,Late-corrected,0,0
+130,AI,Late-corrected,100,1
+131,AI + Human,Early-corrected,100,1
+131,AI + Human,Late-corrected,33.3333333,0.333333333
+132,AI + Human,Early-corrected,100,1
+132,AI + Human,Late-corrected,33.3333333,0.333333333
+133,AI + Human,Early-corrected,100,1
+133,AI + Human,Late-corrected,0,0
+135,AI,Early-corrected,50,0.5
+135,AI,Late-corrected,0,0
+136,Human,Early-corrected,50,0.5
+136,Human,Late-corrected,0,0
+137,AI + Human,Early-corrected,20,0.2
+137,AI + Human,Late-corrected,0,0
+138,AI,Early-corrected,100,1
+138,AI,Late-corrected,75,0.75
+140,AI,Early-corrected,40,0.4
+140,AI,Late-corrected,40,0.4
+141,Human,Early-corrected,100,1
+141,Human,Late-corrected,100,1
+142,Human,Late-corrected,80,0.8
+145,AI,Early-corrected,0,0
+145,AI,Late-corrected,40,0.4
+148,AI + Human,Early-corrected,0,0
+148,AI + Human,Late-corrected,16.6666667,0.166666667
+152,AI,Early-corrected,0,0
+153,Human,Early-corrected,100,1
+153,Human,Late-corrected,100,1
+155,AI,Early-corrected,28.5714286,0.285714286
+155,AI,Late-corrected,0,0
+156,AI,Early-corrected,0,0
+156,AI,Late-corrected,22.2222222,0.222222222
+159,Human,Early-corrected,0,0
+160,Human,Late-corrected,50,0.5
+161,AI,Early-corrected,0,0
+161,AI,Late-corrected,20,0.2
+162,Human,Late-corrected,100,1
+164,Human,Early-corrected,0,0
+164,Human,Late-corrected,16.6666667,0.166666667
+165,AI + Human,Early-corrected,87.5,0.875
+166,AI + Human,Early-corrected,75,0.75
+166,AI + Human,Late-corrected,0,0
+169,AI + Human,Early-corrected,50,0.5
+169,AI + Human,Late-corrected,11.1111111,0.111111111
+170,Human,Early-corrected,50,0.5
+170,Human,Late-corrected,66.6666667,0.666666667
+171,AI + Human,Early-corrected,100,1
+171,AI + Human,Late-corrected,66.6666667,0.666666667
+172,Human,Early-corrected,100,1
+172,Human,Late-corrected,25,0.25
+173,AI,Early-corrected,100,1
+177,AI,Early-corrected,100,1
+178,AI + Human,Early-corrected,100,1
+178,AI + Human,Late-corrected,0,0
+179,Human,Early-corrected,66.6666667,0.666666667
+179,Human,Late-corrected,77.7777778,0.777777778
+180,Human,Early-corrected,100,1
+181,AI,Early-corrected,66.6666667,0.666666667
+181,AI,Late-corrected,100,1
+183,AI + Human,Early-corrected,100,1
+183,AI + Human,Late-corrected,100,1
+184,AI,Early-corrected,66.6666667,0.666666667
+184,AI,Late-corrected,0,0
+185,AI + Human,Early-corrected,50,0.5
+185,AI + Human,Late-corrected,100,1
+186,Human,Late-corrected,28.5714286,0.285714286
+187,AI,Early-corrected,100,1
+187,AI,Late-corrected,50,0.5
+188,AI,Early-corrected,100,1
+188,AI,Late-corrected,80,0.8
+190,AI,Late-corrected,50,0.5
+191,Human,Early-corrected,66.6666667,0.666666667
+191,Human,Late-corrected,80,0.8
+192,Human,Early-corrected,50,0.5
+192,Human,Late-corrected,50,0.5
+193,Human,Early-corrected,66.6666667,0.666666667
+193,Human,Late-corrected,66.6666667,0.666666667
+194,AI + Human,Early-corrected,100,1
+195,AI,Early-corrected,40,0.4
+196,Human,Early-corrected,33.3333333,0.333333333
+196,Human,Late-corrected,0,0
+197,Human,Early-corrected,100,1
+197,Human,Late-corrected,50,0.5
+198,Human,Early-corrected,0,0
+198,Human,Late-corrected,0,0
+199,Human,Late-corrected,60,0.6
+200,Human,Early-corrected,100,1
+200,Human,Late-corrected,0,0
+201,AI + Human,Early-corrected,66.6666667,0.666666667
+201,AI + Human,Late-corrected,12.5,0.125
+202,AI,Early-corrected,100,1
+202,AI,Late-corrected,50,0.5
+203,AI,Late-corrected,50,0.5
+204,AI + Human,Early-corrected,100,1
+204,AI + Human,Late-corrected,33.3333333,0.333333333

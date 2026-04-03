@@ -1,0 +1,161 @@
+---
+title: "Early Late Corretness"
+author: "Spike"
+date: "2025-08-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Packages
+``` {r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(lme4)
+library(broom.mixed)
+```
+
+## Load Data & Preprocess
+``` {r, message=FALSE, warning=FALSE}
+dat <- readxl::read_excel("data/correction_raw_data.xlsx") %>%
+  mutate(ID = factor(ID))
+```
+
+``` {r, message=FALSE, warning=FALSE}
+items <- c(paste0("t1_q", 1:6), paste0("t2_q", 1:5), paste0("t3_q", 1:6))
+
+truth <- c(rep(FALSE, 6), rep(FALSE, 5), FALSE, TRUE, TRUE, TRUE, FALSE, TRUE)
+names(truth) <- items
+
+s1 <- paste0("stage1_", items)
+s2 <- paste0("stage2_", items)
+s3 <- paste0("stage3_", items)
+fu <- paste0("follow_up_", items)
+
+# Filter Participants With Follow-up Responses
+dat <- dat %>%
+  filter(rowSums(across(all_of(fu), ~ !is.na(.))) > 0)
+
+# Coerce Answer Types
+dat <- dat %>%
+  mutate(
+    across(all_of(fu), ~ ifelse(is.na(.), NA, . == 1)),
+    across(all_of(c(s1, s2, s3)), as.logical)
+  )
+
+# Long Format, Attach Truth, Compute Correctness
+long <- dat %>%
+  pivot_longer(
+    cols = matches("^(stage1|stage2|stage3|follow_up)_t[123]_q\\d+$"),
+    names_to = c("Stage", "Item"),
+    names_pattern = "^(stage1|stage2|stage3|follow_up)_(t\\d_q\\d+)$",
+    values_to = "Ans"
+  ) %>%
+  mutate(
+    Item = factor(Item, levels = items),
+    Task = factor(sub("_q\\d+$", "", as.character(Item)), levels = c("t1", "t2", "t3"))
+  )
+
+truth_df <- tibble(Item = factor(items, levels = items), Truth = truth)
+
+wide <- long %>%
+  left_join(truth_df, by = "Item") %>%
+  pivot_wider(names_from = Stage, values_from = Ans) %>%
+  mutate(
+    S1c = stage1 == Truth,
+    S2c = stage2 == Truth,
+    S3c = stage3 == Truth,
+    FUc = if_else(is.na(follow_up), NA, follow_up == Truth)
+  )
+
+# Build Analysis Dataset: Early vs Late Correction
+analysis <- wide %>%
+  filter(S1c == FALSE, (S2c | S3c), !is.na(FUc)) %>%
+  mutate(
+    EarlyCorrected = as.integer(S2c == TRUE),
+    Item = factor(Item),
+    ID = factor(ID)
+  )
+```
+
+## Descriptives and Main Model
+### Follow-up Accuracy by Early/Late
+``` {r, message=FALSE, warning=FALSE}
+desc <- analysis %>%
+  group_by(Label, EarlyCorrected) %>%
+  summarise(
+    n = n(),
+    mean_FU_correct = mean(FUc),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Group = ifelse(
+      EarlyCorrected == 1,
+      "Early-corrected (by S2)",
+      "Late-corrected (only by S3)"
+    )
+  ) %>%
+  select(Label, Group, n, mean_FU_correct)
+
+print(desc)
+```
+
+### Logistic Mixed Model
+``` {r, message=FALSE, warning=FALSE}
+analysis$EarlyCorrected <- factor(analysis$EarlyCorrected, levels = c("1", "0"))
+
+fit <- glmer(
+FUc ~ EarlyCorrected * Label + Task + overall_accuracy_stage1 + (1 | ID) + (1 | Item),
+data = analysis,
+family = binomial
+)
+
+summary(fit)
+```
+
+### Odds Ratios (Fixed Effects)
+``` {r, message=FALSE, warning=FALSE}
+or_tab <- broom.mixed::tidy(
+fit,
+effects = "fixed",
+conf.int = TRUE,
+exponentiate = TRUE
+)
+
+print(or_tab)
+```
+
+### Inference and Post-hoc
+``` {r, message=FALSE, warning=FALSE}
+aov <- car::Anova(fit, type = 3)
+aov
+
+parameters::model_parameters(fit, exponentiate = TRUE)
+
+emmeans(fit, pairwise ~ EarlyCorrected)
+```
+
+``` {r, message=FALSE, warning=FALSE}
+emmeans(fit, pairwise ~ Label * EarlyCorrected)
+```
+
+### Model Comparison
+#### Fit Interaction With Task
+``` {r, message=FALSE, warning=FALSE}
+fit2 <- glmer(
+FUc ~ EarlyCorrected * Task * Label + (1 | ID) + (1 | Item),
+data = analysis,
+family = binomial
+)
+```
+
+#### Compare Models
+``` {r, message=FALSE, warning=FALSE}
+anova(fit, fit2)
+
+performance::compare_performance(fit, fit2, rank = TRUE)
+```

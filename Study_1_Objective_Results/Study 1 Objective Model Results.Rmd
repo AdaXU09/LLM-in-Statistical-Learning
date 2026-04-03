@@ -1,0 +1,103 @@
+---
+title: 'Study 1 Objective: Thinking Mode Mixed Models'
+author: "Spike"
+date: "2026-01-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Packages
+``` {r, message=FALSE, warning=FALSE}
+library(dplyr)
+library(readxl)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(effectsize)
+library(report)
+```
+
+## Load Data
+``` {r, message=FALSE, warning=FALSE}
+df_obj <- read_excel("data/Study_1_Objective_Data.xlsx")
+
+df_obj <- df_obj %>%
+  mutate(
+    Thinking_Model = factor(Thinking_Model, levels = c("1", "0")),
+    software = factor(software),
+    question = factor(question),
+    model = factor(model),
+    iteration = factor(iteration)
+  )
+```
+
+## Subset Thinking-Mode Platforms
+``` {r, message=FALSE, warning=FALSE}
+thinking_model <- c("claude", "Grok", "deepseek", "gemini", "chatgpt")
+
+df_obj_thinking <- df_obj %>%
+  filter(software %in% thinking_model)
+```
+
+## Accuracy Aggregation
+``` {r, message=FALSE, warning=FALSE}
+df_thinking_agg <- df_obj_thinking %>%
+  group_by(model, question, Thinking_Model, software) %>%
+  summarise(
+    n = n(),
+    Prop_Correct = mean(accuracy_rate),
+    SD_Correct = sd(accuracy_rate),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Prop_Correct_adj = pmin(pmax(Prop_Correct, 1e-5), 1 - 1e-5),
+    Logit_Prop = qlogis(Prop_Correct_adj)
+  )
+```
+
+## Accuracy Mixed Model
+``` {r, message=FALSE, warning=FALSE}
+mod_acc <- lmer(
+  Logit_Prop ~ Thinking_Model * question + software + (1 | model),
+  data = df_thinking_agg
+)
+
+summary(mod_acc)
+anova(mod_acc)
+effectsize::eta_squared(mod_acc, partial = TRUE)
+emmeans(mod_acc, pairwise ~ Thinking_Model)
+#report(mod_acc)
+```
+
+## Stability (SD) Aggregation
+``` {r, message=FALSE, warning=FALSE}
+df_SD_thinking_agg <- df_obj_thinking %>%
+  group_by(model, software, question, Thinking_Model) %>%
+  summarise(
+    n = n(),
+    Prop_Correct = mean(accuracy_rate),
+    SD_Correct = sd(accuracy_rate),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Prop_SD_adj = pmin(pmax(SD_Correct, 1e-5), 1 - 1e-5),
+    Logit_Prop_SD = qlogis(Prop_SD_adj)
+  )
+```
+
+## Stability (SD) Mixed Model
+``` {r, message=FALSE, warning=FALSE}
+mod_sd <- lmer(
+  Logit_Prop_SD ~ Thinking_Model * question + software + (1 | model),
+  data = df_SD_thinking_agg
+)
+
+summary(mod_sd)
+anova(mod_sd)
+effectsize::eta_squared(mod_sd, partial = TRUE)
+emmeans(mod_sd, pairwise ~ Thinking_Model)
+#report(mod_sd)
+```

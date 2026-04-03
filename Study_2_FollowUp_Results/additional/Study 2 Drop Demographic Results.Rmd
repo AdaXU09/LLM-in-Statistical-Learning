@@ -1,0 +1,218 @@
+---
+title: "Study 2 Demographic Results"
+author: "Spike"
+date: "2025-07-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Packages
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(janitor)
+library(dplyr)
+library(tidyr)
+library(openxlsx)
+```
+
+## Load Data
+```{r, message=FALSE, warning=FALSE}
+df <- read_excel("data/Study_2_Full_Data.xlsx")
+
+df <- df %>%
+  filter(stage1_task0_accuracy < 0.9) %>%
+  mutate(Label = factor(Label, levels = c("AI", "AI Human", "Human")))
+```
+
+## Descriptives
+### Drop × Label
+```{r, message=FALSE, warning=FALSE, echo=TRUE}
+label_table <- df %>%
+  group_by(drop, Label) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+label_table
+```
+
+### Drop × Gender
+```{r, message=FALSE, warning=FALSE, echo=TRUE}
+gender_table <- df %>%
+  group_by(drop, Gender) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+gender_table
+```
+
+### Drop × Age
+```{r, message=FALSE, warning=FALSE, echo=TRUE}
+age_table <- df %>%
+  group_by(drop, Age) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+age_table
+```
+
+### Drop × Identity
+```{r}
+identity_table <- df %>%
+  group_by(drop, Identity) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+identity_table
+```
+
+### Drop × Field
+```{r, message=FALSE, warning=FALSE, echo=TRUE}
+field_table <- df %>%
+  group_by(drop, Field) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+field_table
+```
+
+### Drop × Stats Background
+```{r, message=FALSE, warning=FALSE, echo=TRUE}
+statsbackground_table <- df %>%
+  group_by(drop, Stats_Background) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+statsbackground_table
+```
+
+### Drop × LLM Use Frequency
+```{r, message=FALSE, warning=FALSE, echo=TRUE}
+llm_freq_table <- df %>%
+  group_by(drop, Used_LLM_Frequency) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+llm_freq_table
+```
+
+### Drop × LLM Use Hours
+```{r, message=FALSE, warning=FALSE, echo=TRUE}
+llm_hours_table <- df %>%
+  group_by(drop, Used_LLM_Hours) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+llm_hours_table
+```
+
+## Chi-square Tests (Drop × Demographics)
+```{r, message=FALSE, warning=FALSE, echo=TRUE}
+label_chi <- chisq.test(table(df$drop, df$Label))
+gender_chi <- chisq.test(table(df$drop, df$Gender))
+age_chi <- chisq.test(table(df$drop, df$Age))
+identity_chi <- chisq.test(table(df$drop, df$Identity))
+field_chi <- chisq.test(table(df$drop, df$Field))
+background_chi <- chisq.test(table(df$drop, df$Stats_Background))
+frequency_chi <- chisq.test(table(df$drop, df$Used_LLM_Frequency))
+hours_chi <- chisq.test(table(df$drop, df$Used_LLM_Hours))
+
+label_chi
+gender_chi
+age_chi
+identity_chi
+field_chi
+background_chi
+frequency_chi
+hours_chi
+```
+
+### Export Results
+```{r, message=FALSE, warning=FALSE, echo=TRUE}
+# test_results <- data.frame(
+#   Variable = c(
+#     "Label", "Gender", "Age", "Identity", "Field",
+#     "Stats_Background", "Used_Frequency", "Used_Hours"
+#   ),
+#   Test = rep("Chi-square", 8),
+#   Statistic = c(
+#     as.numeric(label_chi$statistic),
+#     as.numeric(gender_chi$statistic),
+#     as.numeric(age_chi$statistic),
+#     as.numeric(identity_chi$statistic),
+#     as.numeric(field_chi$statistic),
+#     as.numeric(background_chi$statistic),
+#     as.numeric(frequency_chi$statistic),
+#     as.numeric(hours_chi$statistic)
+#   ),
+#   p_value = c(
+#     label_chi$p.value,
+#     gender_chi$p.value,
+#     age_chi$p.value,
+#     identity_chi$p.value,
+#     field_chi$p.value,
+#     background_chi$p.value,
+#     frequency_chi$p.value,
+#     hours_chi$p.value
+#   )
+# )
+# 
+# all_tables <- list(
+#   Label_Distribution    = label_table,
+#   Gender_Distribution   = gender_table,
+#   Age_Distribution      = age_table,
+#   Identity_Distribution = identity_table,
+#   Field_Distribution    = field_table,
+#   Stats_Background      = statsbackground_table,
+#   LLM_Use_Frequency     = llm_freq_table,
+#   LLM_Use_Hours         = llm_hours_table,
+#   Statistical_Tests     = test_results
+# )
+# 
+# write.xlsx(
+#   all_tables,
+#   file = "results/Baseline demographic_results/Demographic_Analysis_Results_Drop.xlsx"
+# )
+```

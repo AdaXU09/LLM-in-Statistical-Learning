@@ -1,0 +1,134 @@
+---
+title: "Figure_Study2_Quality_refined"
+author: "lily"
+date: "2025-12-07"
+output: html_document
+---
+
+```{r, message = F, warning = F, message = F, warning = F setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load libraries
+``` {r, message = F, warning = F}
+library(tidyverse)
+library(readxl)
+library(showtext)
+```
+
+## Font and theme settings
+``` {r, message = F, warning = F}
+showtext_auto()
+showtext_opts(dpi = 600)
+
+font_add(
+  family = "Arial",
+  regular = "C:/Windows/Fonts/arial.ttf"
+)
+
+theme_set(theme_classic(base_family = "Arial"))
+```
+
+## Import data
+``` {r, message = F, warning = F}
+df <- read_excel("data/Study_1_Subjective_Data.xlsx")
+```
+
+## Data processing and summary statistics
+``` {r, message = F, warning = F}
+df <- df %>%
+  mutate(
+    Mean_Quality = (Statistical_Accuracy + Clarity_and_Structure +
+      Conceptual_Depth + Pedagogical_Effectiveness) / 4,
+    Model_Name = case_when(
+      Model == "ChatGPT_4o" ~ "GPT-4o",
+      Model == "ChatGPT_o1" ~ "OpenAI o1",
+      Model == "Grok3" ~ "Grok 3",
+      Model == "Gemini_2.0" ~ "Gemini 2.0 Flash"
+    )
+  )
+
+summary_data <- df %>%
+  group_by(Model_Name, Profession) %>%
+  summarise(
+    mean = mean(Mean_Quality),
+    sd = sd(Mean_Quality),
+    n = n(),
+    se = sd / sqrt(n),
+    ci_lower = mean - 1.96 * se,
+    ci_upper = mean + 1.96 * se,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Model_Name = factor(
+      Model_Name,
+      levels = c("GPT-4o", "OpenAI o1", "Grok 3", "Gemini 2.0 Flash")
+    ),
+    Profession = factor(Profession, levels = c("Instructor", "Student"))
+  )
+```
+
+## Color settings
+``` {r, message = F, warning = F}
+profession_colors <- c("Instructor" = "#D55E00", "Student" = "#0072B2")
+errorbar_colors <- c("Instructor" = "#E8A77A", "Student" = "#7AB8D9")
+```
+
+## Plot and save figure
+``` {r, message = F, warning = F}
+p <- ggplot(
+  summary_data,
+  aes(x = Model_Name, y = mean, color = Profession, shape = Profession)
+) +
+  geom_errorbar(
+    aes(ymin = ci_lower, ymax = ci_upper),
+    width = 0,
+    linewidth = 0.5,
+    alpha = 1,
+    position = position_dodge(width = 0.3),
+    show.legend = FALSE
+  ) +
+  geom_point(
+    size = 4.5,
+    stroke = 1,
+    position = position_dodge(width = 0.3)
+  ) +
+  scale_color_manual(values = profession_colors, name = NULL) +
+  scale_shape_manual(values = c("Instructor" = 15, "Student" = 16), name = NULL) +
+  scale_y_continuous(
+    limits = c(4.4, 6.0),
+    breaks = c(4.4, 4.8, 5.2, 5.6, 6.0),
+    expand = c(0, 0)
+  ) +
+  geom_segment(aes(x = 1, xend = 2, y = 4.4, yend = 4.4), color = "black", linewidth = 0.5) +
+  geom_segment(aes(x = 2, xend = 3, y = 4.4, yend = 4.4), color = "black", linewidth = 0.5) +
+  geom_segment(aes(x = 3, xend = 4, y = 4.4, yend = 4.4), color = "black", linewidth = 0.5) +
+  labs(
+    x = NULL,
+    y = "Mean guidance quality"
+  ) +
+  theme_classic(base_size = 14) +
+  coord_cartesian(ylim = c(4.4, 6.0), clip = "off") +
+  theme(
+    axis.line.x = element_blank(),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0),
+    axis.title.x = element_text(face = "plain", size = 13, margin = margin(t = 10)),
+    axis.title.y = element_text(face = "plain", size = 13, margin = margin(r = 10)),
+    axis.text.x = element_text(face = "plain", size = 13, color = "black", margin = margin(t = 7)),
+    axis.text.y = element_text(face = "plain", size = 13, color = "black", margin = margin(r = 7)),
+    legend.text = element_text(face = "plain", size = 13),
+    legend.position = c(0.95, 1),
+    legend.justification = c("right", "top"),
+    axis.ticks.length = unit(8, "points"),
+    axis.ticks = element_line(colour = "black", linewidth = 0.5),
+    axis.line = element_line(colour = "black", linewidth = 0.5),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank()
+  )
+
+print(p)
+
+ggsave("figure/Figure_Study1_2.pdf", p, width = 7, height = 5, dpi = 600, bg = "white")
+ggsave("figure/Figure_Study1_2.png", p, width = 7, height = 5, dpi = 600, bg = "white")
+ggsave("figure/Figure_Study1_2.svg", p, width = 7, height = 5, bg = "white")
+```

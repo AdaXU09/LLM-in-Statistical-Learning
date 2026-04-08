@@ -246,7 +246,7 @@ fig22 <- ggplot(df_combined, aes(x = x_plot, y = mean_pct)) +
   geom_hline(yintercept = 3, linetype = "dashed", color = "gray50", linewidth = 0.5) +
   geom_line(aes(group = Label, linetype = Label), color = "black", size = 0.5, alpha = 1) +
   geom_errorbar(
-    aes(ymin = mean_pct - ci_pct, ymax = mean_pct + ci_pct),
+    aes(ymin = mean_pct - ci_pct, ymax = mean_pct + ci_pct, group = Label),
     color = "black", width = 0, size = 0.5, alpha = 1
   ) +
   geom_point(aes(shape = Label, fill = Label), color = "black", size = 4, stroke = 1) +
@@ -361,7 +361,7 @@ fig23 <- ggplot(my_data, aes(x = Phase, y = Willing)) +
   geom_line(aes(group = ID_x), color = "gray80", alpha = 0.5, size = 0.5) +
   geom_hline(yintercept = 3, linetype = "dashed", color = "gray50", linewidth = 0.5) +
   stat_summary(fun = mean, geom = "line", linetype = "dashed", aes(group = 1, color = Label), size = 0.5) +
-  stat_summary(fun.data = mean_se, geom = "errorbar", aes(color = Label), width = 0, size = 0.5) +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", aes(color = Label), width = 0, size = 0.5) +
   geom_errorbar(
     data = compters_only,
     aes(y = mean, ymin = mean - ci95, ymax = mean + ci95, color = Label),
@@ -459,7 +459,7 @@ fig24 <- ggplot(my_data2, aes(x = Phase, y = Useful)) +
   geom_line(aes(group = ID_x), color = "gray80", alpha = 0.5, size = 0.5) +
   geom_hline(yintercept = 3, linetype = "dashed", color = "gray50", linewidth = 0.5) +
   stat_summary(fun = mean, geom = "line", linetype = "dashed", aes(group = 1, color = Label), size = 0.5) +
-  stat_summary(fun.data = mean_se, geom = "errorbar", aes(color = Label), width = 0, size = 0.5) +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", aes(color = Label), width = 0, size = 0.5) +
   geom_errorbar(
     data = compters_only2,
     aes(y = mean, ymin = mean - ci95, ymax = mean + ci95, color = Label),

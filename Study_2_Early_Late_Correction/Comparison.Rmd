@@ -1,31 +1,63 @@
 ---
-title: "Early Late Corretness"
-author: "Spike"
+title: "Study 2 — Early- vs. Late-Corrected Items at Follow-Up"
+author: "Siyuan Huang"
 date: "2025-08-22"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+set.seed(42)
 ```
 
-## Load Packages
-``` {r}
+# Study 2 — Early- vs. Late-Corrected Items at Follow-Up
+
+This is a standalone item-level analysis asking whether items a
+participant first answered incorrectly at Stage 1 and then corrected
+**early** (by Stage 2) versus **late** (only by Stage 3) differ in their
+probability of remaining correct at follow-up.
+
+The **main analysis** is a logistic mixed-effects model of follow-up
+correctness that **controls for item difficulty** (plus participant
+baseline accuracy and task), with crossed participant and item random
+effects. The supplementary and sensitivity analyses that follow probe its
+robustness (model without the difficulty covariate, label main effects,
+the difficulty composition of the early/late groups, the early-corrected
+subset, manipulation passers, and the perceived label).
+
+The sample is the follow-up responders (≥ 1 follow-up answer). It is **not**
+subject to the Stage-1 ceiling screen used elsewhere, because this analysis
+is item-conditional: an item enters only if it was wrong at Stage 1,
+corrected by Stage 2 or 3, and answered at follow-up.
+
+## Packages
+```{r packages}
 library(readxl)
 library(dplyr)
 library(tidyr)
 library(stringr)
 library(lme4)
 library(broom.mixed)
+library(emmeans)
 ```
 
-## Load Data & Preprocess
-``` {r, message=FALSE, warning=FALSE}
+## Load Data and Preprocessing
+
+The raw item-level data are loaded and restricted to follow-up
+responders. Item responses are scored against the ground truth, reshaped
+to long format, and the correction-timing analysis dataset is built by
+keeping items that were wrong at Stage 1, subsequently corrected (by
+Stage 2 or Stage 3), and answered at follow-up. `CorrectionTiming`
+classifies each such item as **Early** (corrected by Stage 2) or
+**Late** (corrected only by Stage 3).
+
+```{r load-data}
 dat <- readxl::read_excel("data/correction_raw_data.xlsx") %>%
   mutate(ID = factor(ID))
 ```
 
-``` {r, message=FALSE, warning=FALSE}
+```{r build-analysis}
 items <- c(paste0("t1_q", 1:6), paste0("t2_q", 1:5), paste0("t3_q", 1:6))
 
 truth <- c(rep(FALSE, 6), rep(FALSE, 5), FALSE, TRUE, TRUE, TRUE, FALSE, TRUE)
@@ -73,89 +105,569 @@ wide <- long %>%
   )
 
 # Build Analysis Dataset: Early vs Late Correction
+# Items wrong at Stage 1, eventually corrected, and answered at follow-up.
+# Among these:
+#   Early = corrected by Stage 2
+#   Late  = not by Stage 2 but corrected by Stage 3
 analysis <- wide %>%
   filter(S1c == FALSE, (S2c | S3c), !is.na(FUc)) %>%
   mutate(
-    EarlyCorrected = as.integer(S2c == TRUE),
+    CorrectionTiming = factor(
+      case_when(
+        S2c == TRUE ~ "Early",
+        S2c == FALSE & S3c == TRUE ~ "Late"
+      ),
+      levels = c("Early", "Late")
+    ),
     Item = factor(Item),
     ID = factor(ID)
   )
 ```
 
-## Descriptives and Main Model
-### Follow-up Accuracy by Early/Late
-``` {r, message=FALSE, warning=FALSE}
+## Item-Difficulty Proxy
+
+The main model controls for item difficulty. Difficulty is each item's
+Stage-1 accuracy across the **full sample** (pre-treatment, item-level).
+The full sample (including those who answered correctly) must be used,
+otherwise post-treatment selection leaks back into the difficulty measure
+itself. Larger `difficulty_c` = easier item.
+
+```{r item-difficulty}
+item_difficulty <- wide %>%
+  filter(!is.na(S1c)) %>%
+  group_by(Item) %>%
+  summarise(p_correct_s1 = mean(S1c), .groups = "drop") %>%
+  mutate(difficulty_c = as.numeric(scale(p_correct_s1, center = TRUE, scale = FALSE)))
+# larger difficulty_c = easier item
+
+print(item_difficulty)
+```
+
+# Main Analysis: Follow-Up Model Controlling for Difficulty
+
+This is the primary analysis. Among items answered incorrectly at Stage 1
+and subsequently corrected, we distinguish **early-corrected** items
+(corrected by Stage 2, under the explanation alone) from **late-corrected**
+items (corrected only after Stage 3 answer disclosure), and model follow-up
+correctness with a logistic mixed-effects model that controls for item
+difficulty, participant baseline accuracy (`overall_accuracy_stage1`), and
+task, with crossed participant and item random effects. The focal term is
+the `CorrectionTiming × Label` interaction.
+
+Because this decomposition conditions on a post-treatment outcome (whether
+and when an item was corrected), it is treated as exploratory and
+descriptive; the supplementary and sensitivity analyses below probe its
+robustness.
+
+### Follow-Up Accuracy by Early/Late Correction
+```{r main-descriptives}
 desc <- analysis %>%
-  group_by(Label, EarlyCorrected) %>%
+  group_by(Label, CorrectionTiming) %>%
   summarise(
     n = n(),
     mean_FU_correct = mean(FUc),
     .groups = "drop"
   ) %>%
-  mutate(
-    Group = ifelse(
-      EarlyCorrected == 1,
-      "Early-corrected (by S2)",
-      "Late-corrected (only by S3)"
-    )
-  ) %>%
-  select(Label, Group, n, mean_FU_correct)
+  arrange(Label, CorrectionTiming)
 
 print(desc)
 ```
 
-### Logistic Mixed Model
-``` {r, message=FALSE, warning=FALSE}
-analysis$EarlyCorrected <- factor(analysis$EarlyCorrected, levels = c("1", "0"))
+### Difficulty-Controlled Logistic Mixed Model
+```{r main-data}
+# Attach the item-difficulty proxy to the early/late analysis dataset.
+analysis_diff <- analysis %>%
+  left_join(item_difficulty, by = "Item")
+```
 
-fit <- glmer(
-FUc ~ EarlyCorrected * Label + Task + overall_accuracy_stage1 + (1 | ID) + (1 | Item),
-data = analysis,
-family = binomial
+```{r main-model}
+fit_main <- glmer(
+  FUc ~ CorrectionTiming * Label + Task + difficulty_c + overall_accuracy_stage1 + (1 | ID) + (1 | Item),
+  data = analysis_diff,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
 )
 
-summary(fit)
+summary(fit_main)
 ```
 
 ### Odds Ratios (Fixed Effects)
-``` {r, message=FALSE, warning=FALSE}
+```{r main-or}
 or_tab <- broom.mixed::tidy(
-fit,
-effects = "fixed",
-conf.int = TRUE,
-exponentiate = TRUE
+  fit_main,
+  effects = "fixed",
+  conf.int = TRUE,
+  exponentiate = TRUE
 )
 
 print(or_tab)
 ```
 
 ### Inference and Post-hoc
-``` {r, message=FALSE, warning=FALSE}
-aov <- car::Anova(fit, type = 3)
+```{r main-inference}
+aov <- car::Anova(fit_main, type = 3)
 aov
 
-parameters::model_parameters(fit, exponentiate = TRUE)
+parameters::model_parameters(fit_main, exponentiate = TRUE)
 
-emmeans(fit, pairwise ~ EarlyCorrected)
+emmeans(fit_main, pairwise ~ CorrectionTiming)
 ```
 
-``` {r, message=FALSE, warning=FALSE}
-emmeans(fit, pairwise ~ Label * EarlyCorrected)
+#### Condition-Specific Contrasts
+```{r main-contrasts-by-label}
+emmeans::emmeans(fit_main, pairwise ~ CorrectionTiming | Label)$contrasts
+emmeans::emmeans(fit_main, pairwise ~ CorrectionTiming | Label, type = "response")$contrasts
 ```
 
-### Model Comparison
-#### Fit Interaction With Task
-``` {r, message=FALSE, warning=FALSE}
-fit2 <- glmer(
-FUc ~ EarlyCorrected * Task * Label + (1 | ID) + (1 | Item),
-data = analysis,
-family = binomial
+# Supplementary & Sensitivity Analyses
+
+The analyses below probe the robustness of the main result: the same model
+without the difficulty covariate (S1); label main effects among corrected
+items (S2); whether the early/late groups differ in difficulty composition
+(S3); the early-corrected subset on its own (S4–S5); and two manipulation
+robustness checks (S6–S7).
+
+## S1 — Without Difficulty Covariate
+
+The main model, refit **without** the item-difficulty covariate (the
+earlier specification). Comparing S1 with the main model shows how
+controlling for difficulty changes the early/late pattern.
+
+```{r s1-nodiff-model}
+fit_nodiff <- glmer(
+  FUc ~ CorrectionTiming * Label + Task + overall_accuracy_stage1 + (1 | ID) + (1 | Item),
+  data = analysis,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
 )
+
+summary(fit_nodiff)
 ```
 
-#### Compare Models
-``` {r, message=FALSE, warning=FALSE}
-anova(fit, fit2)
+```{r s1-nodiff-or}
+broom.mixed::tidy(fit_nodiff, effects = "fixed", conf.int = TRUE, exponentiate = TRUE)
+```
 
-performance::compare_performance(fit, fit2, rank = TRUE)
+```{r s1-nodiff-inference}
+car::Anova(fit_nodiff, type = 3)
+
+parameters::model_parameters(fit_nodiff, exponentiate = TRUE)
+
+emmeans(fit_nodiff, pairwise ~ CorrectionTiming)
+emmeans::emmeans(fit_nodiff, pairwise ~ CorrectionTiming | Label, type = "response")$contrasts
+```
+
+## S2 — Label Main Effect on Corrected Items
+
+Conditioning on items wrong at Stage 1 and subsequently corrected (by
+Stage 2 or Stage 3), collapsing early/late, test the **label** main effect
+on follow-up correctness. Reported with and without the item-difficulty
+covariate.
+
+```{r s2-data}
+analysis_corrected <- wide %>%
+  filter(S1c == FALSE, (S2c | S3c), !is.na(FUc)) %>%
+  mutate(
+    Item = factor(Item),
+    ID = factor(ID)
+  )
+```
+
+### S2a — Without Difficulty
+```{r s2-model-nodiff}
+fit_label <- glmer(
+  FUc ~ Label + Task + overall_accuracy_stage1 + (1 | ID) + (1 | Item),
+  data = analysis_corrected,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+
+summary(fit_label)
+
+car::Anova(fit_label, type = 3)
+
+parameters::model_parameters(fit_label, exponentiate = TRUE)
+
+emmeans(fit_label, pairwise ~ Label)
+```
+
+### S2b — Controlling for Difficulty
+```{r s2-model-diff}
+analysis_corrected_diff <- analysis_corrected %>%
+  left_join(item_difficulty, by = "Item")
+
+fit_label_diff <- glmer(
+  FUc ~ Label + Task + overall_accuracy_stage1 + difficulty_c + (1 | ID) + (1 | Item),
+  data = analysis_corrected_diff,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+
+summary(fit_label_diff)
+
+car::Anova(fit_label_diff, type = 3)
+
+parameters::model_parameters(fit_label_diff, exponentiate = TRUE)
+
+emmeans(fit_label_diff, pairwise ~ Label)
+```
+
+## S3 — Selection Test: Difficulty Composition of Early vs. Late
+
+Here the outcome is *whether an item is corrected early or late* (not
+accuracy), predicted from pre-treatment item difficulty. If difficulty
+predicts the grouping, and does so differently by label, the early/late
+groups differ in difficulty composition in a label-induced way — motivating
+the difficulty control in the main model.
+
+Variable mapping (against the original pseudocode): `d` → `wide`,
+`item` → `Item`, `correct_s1` → `S1c`, `early_correct` → `EarlyCorrected`,
+`label` → `Label`, `participant` → `ID`.
+
+### S3a — Early/Late Analysis Subset
+Items wrong at Stage 1 and eventually corrected (where `EarlyCorrected`
+is defined), with the difficulty proxy attached.
+
+```{r s3-corrected-subset}
+d_corrected <- wide %>%
+  filter(S1c == FALSE, (S2c | S3c)) %>%
+  mutate(
+    EarlyCorrected = as.integer(S2c == TRUE),
+    Item = factor(Item),
+    ID = factor(ID)
+  ) %>%
+  left_join(item_difficulty, by = "Item")
+```
+
+### S3b — Difficulty Main Effect
+Are easier items more likely to fall into the early group?
+
+```{r s3-difficulty-main}
+sel1 <- glmer(
+  EarlyCorrected ~ difficulty_c + (1 | ID) + (1 | Item),
+  data = d_corrected, family = binomial,
+  control = glmerControl(optimizer = "bobyqa")
+)
+summary(sel1)
+```
+
+### S3c — Difficulty × Label
+Does the degree to which items are sorted into "early" by difficulty
+differ across labels? This directly tests whether items early-correctable
+under one label differ systematically from those early-correctable under
+another.
+
+```{r s3-difficulty-label}
+sel2 <- glmer(
+  EarlyCorrected ~ difficulty_c * Label + (1 | ID) + (1 | Item),
+  data = d_corrected, family = binomial,
+  control = glmerControl(optimizer = "bobyqa")
+)
+summary(sel2)
+
+car::Anova(sel2, type = 3)
+emmeans(sel2, pairwise ~ Label)
+
+anova(sel1, sel2)
+```
+
+### S3d — Difficulty as the Outcome (Linear Model)
+Cross-check by modelling difficulty itself as the outcome of
+early-correction status and label.
+
+```{r s3-difficulty-lm}
+sel3 <- lmer(
+  difficulty_c ~ EarlyCorrected * Label + (1 | ID),
+  data = d_corrected
+)
+summary(sel3)
+
+car::Anova(sel3, type = 3)
+emmeans(sel3, pairwise ~ EarlyCorrected | Label)
+```
+
+### S3e — Descriptive Balance Table
+A descriptive balance table of difficulty by label and correction timing,
+included for completeness.
+
+```{r s3-balance-table}
+d_corrected %>%
+  group_by(Label, EarlyCorrected) %>%
+  summarise(
+    n = n(),
+    mean_difficulty = mean(difficulty_c),
+    sd_difficulty = sd(difficulty_c),
+    .groups = "drop"
+  ) %>%
+  arrange(Label, desc(EarlyCorrected)) %>%
+  print(n = 50)
+```
+
+## S4 — Early-Corrected Subset Only
+
+Keep only items wrong at Stage 1 and correct at Stage 2 (i.e. Early
+Corrected). Within this "early-corrected" subset, test whether follow-up
+accuracy differs across labels.
+
+### S4a — Build the Early-Corrected Subset
+```{r s4-early-subset}
+analysis_early <- wide %>%
+  filter(S1c == FALSE, S2c == TRUE, !is.na(FUc)) %>%
+  mutate(
+    Item = factor(Item),
+    ID = factor(ID)
+  )
+```
+
+### S4b — Descriptives: Follow-Up Accuracy by Label
+```{r s4-early-accuracy-by-label}
+analysis_early %>%
+  group_by(Label) %>%
+  summarise(
+    n = n(),
+    mean_FU_correct = mean(FUc),
+    .groups = "drop"
+  ) %>%
+  arrange(Label) %>%
+  print()
+```
+
+### S4b-2 — Participant Counts by Label
+```{r s4-early-participant-counts}
+analysis_early %>%
+  group_by(Label) %>%
+  summarise(
+    n_participants = n_distinct(ID),
+    n_obs = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(Label) %>%
+  print()
+```
+
+### S4c — Logistic Mixed Model
+```{r s4-early-model}
+fit_early <- glmer(
+  FUc ~ Label + Task + overall_accuracy_stage1 + (1 | ID) + (1 | Item),
+  data = analysis_early,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+
+summary(fit_early)
+```
+
+### S4d — Odds Ratios (Fixed Effects)
+```{r s4-early-or}
+or_tab_early <- broom.mixed::tidy(
+  fit_early,
+  effects = "fixed",
+  conf.int = TRUE,
+  exponentiate = TRUE
+)
+
+print(or_tab_early)
+```
+
+### S4e — Inference and Post-hoc
+```{r s4-early-inference}
+aov_early <- car::Anova(fit_early, type = 3)
+aov_early
+
+parameters::model_parameters(fit_early, exponentiate = TRUE)
+
+emmeans(fit_early, pairwise ~ Label)
+emmeans(fit_early, pairwise ~ Label, type = "response")$contrasts
+```
+
+## S5 — Early-Corrected Subset Only + Item Difficulty
+
+The same subset as S4 (wrong at Stage 1, correct at Stage 2), adding the
+item-level difficulty proxy `difficulty_c` (Stage-1 full-sample accuracy,
+centered; larger = easier). The goal is to see whether the label
+difference in follow-up accuracy changes once item difficulty is
+controlled for.
+
+### S5a — Attach the Difficulty Variable
+```{r s5-early-diff-attach}
+analysis_early_diff <- analysis_early %>%
+  left_join(item_difficulty, by = "Item")
+```
+
+### S5b — Logistic Mixed Model
+```{r s5-early-diff-model}
+fit_early_diff <- glmer(
+  FUc ~ Label * difficulty_c + Task + overall_accuracy_stage1 + (1 | ID) + (1 | Item),
+  data = analysis_early_diff,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+
+summary(fit_early_diff)
+```
+
+### S5c — Odds Ratios (Fixed Effects)
+```{r s5-early-diff-or}
+or_tab_early_diff <- broom.mixed::tidy(
+  fit_early_diff,
+  effects = "fixed",
+  conf.int = TRUE,
+  exponentiate = TRUE
+)
+
+print(or_tab_early_diff)
+```
+
+### S5d — Inference and Post-hoc
+```{r s5-early-diff-inference}
+aov_early_diff <- car::Anova(fit_early_diff, type = 3)
+aov_early_diff
+
+parameters::model_parameters(fit_early_diff, exponentiate = TRUE)
+
+emmeans(fit_early_diff, pairwise ~ Label)
+emmeans(fit_early_diff, pairwise ~ Label, type = "response")$contrasts
+```
+
+## S6 — Manipulation Passers Only
+
+As a check against participants for whom the manipulation may have failed,
+the main model is refit on those who **passed the source-recall check**
+(correctly recalled their assigned label; `Recalled_Label` from the main
+Study 2 data, recoded to match). Two models are reported, identical to the
+main structure and differing only in whether `difficulty_c` is included.
+
+### S6a — Identify Passers and Restrict the Sample
+```{r s6-passers-build}
+recall <- readxl::read_excel("data/manipulation_recall.xlsx") %>%
+  mutate(
+    ID = as.character(ID),
+    Recalled_Label = dplyr::recode(Recalled_Label, "AI + Human" = "AI Human")
+  )
+
+passer_ids <- analysis %>%
+  distinct(ID, Label) %>%
+  mutate(ID = as.character(ID)) %>%
+  left_join(recall, by = "ID") %>%
+  filter(as.character(Label) == as.character(Recalled_Label)) %>%
+  pull(ID)
+
+analysis_pass <- analysis %>%
+  filter(as.character(ID) %in% passer_ids) %>%
+  droplevels()
+
+cat("Passers:", length(passer_ids),
+    "of", n_distinct(analysis$ID), "participants;",
+    nrow(analysis_pass), "of", nrow(analysis), "item observations\n")
+```
+
+### S6b — Main Structure (No Difficulty Covariate)
+```{r s6-passers-model-nodiff}
+fit_pass <- glmer(
+  FUc ~ CorrectionTiming * Label + Task + overall_accuracy_stage1 + (1 | ID) + (1 | Item),
+  data = analysis_pass,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+
+summary(fit_pass)
+
+broom.mixed::tidy(fit_pass, effects = "fixed", conf.int = TRUE, exponentiate = TRUE)
+
+car::Anova(fit_pass, type = 3)
+
+emmeans(fit_pass, pairwise ~ CorrectionTiming | Label, type = "response")$contrasts
+```
+
+### S6c — Main Structure + Item Difficulty
+```{r s6-passers-model-diff}
+analysis_pass_diff <- analysis_pass %>%
+  left_join(item_difficulty, by = "Item")
+
+fit_pass_diff <- glmer(
+  FUc ~ CorrectionTiming * Label + Task + difficulty_c + overall_accuracy_stage1 + (1 | ID),
+  data = analysis_pass_diff,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+
+summary(fit_pass_diff)
+
+broom.mixed::tidy(fit_pass_diff, effects = "fixed", conf.int = TRUE, exponentiate = TRUE)
+
+car::Anova(fit_pass_diff, type = 3)
+
+emmeans(fit_pass_diff, pairwise ~ CorrectionTiming | Label, type = "response")$contrasts
+```
+
+## S7 — Perceived Label (As-Recalled Condition)
+
+Complementary to the passers-only check, this keeps the **full sample** but
+replaces the assigned `Label` with the **perceived label** each participant
+recalled (`Recalled_Label`) — the more proximal cause if the manipulation
+operates through what participants *believe* they received. Passers enter
+under their assigned label, non-passers under the one they believed. Two
+models are reported, differing only in whether `difficulty_c` is included.
+
+### S7a — Attach Perceived Label
+```{r s7-perceived-build}
+perceived_lk <- recall %>%
+  transmute(ID = as.character(ID),
+            PerceivedLabel = factor(Recalled_Label, levels = c("AI", "AI Human", "Human")))
+
+analysis_perc <- analysis %>%
+  mutate(ID = as.character(ID)) %>%
+  left_join(perceived_lk, by = "ID") %>%
+  filter(!is.na(PerceivedLabel)) %>%
+  mutate(ID = factor(ID)) %>%
+  droplevels()
+
+cat("Participants with a recalled label:", n_distinct(analysis_perc$ID),
+    "of", n_distinct(analysis$ID), ";",
+    nrow(analysis_perc), "of", nrow(analysis), "item observations\n")
+```
+
+### S7b — Main Structure (No Difficulty Covariate)
+```{r s7-perceived-model-nodiff}
+fit_perc <- glmer(
+  FUc ~ CorrectionTiming * PerceivedLabel + Task + overall_accuracy_stage1 + (1 | ID) + (1 | Item),
+  data = analysis_perc,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+
+summary(fit_perc)
+
+broom.mixed::tidy(fit_perc, effects = "fixed", conf.int = TRUE, exponentiate = TRUE)
+
+car::Anova(fit_perc, type = 3)
+
+emmeans(fit_perc, pairwise ~ CorrectionTiming | PerceivedLabel, type = "response")$contrasts
+```
+
+### S7c — Main Structure + Item Difficulty
+```{r s7-perceived-model-diff}
+analysis_perc_diff <- analysis_perc %>%
+  left_join(item_difficulty, by = "Item")
+
+fit_perc_diff <- glmer(
+  FUc ~ CorrectionTiming * PerceivedLabel + Task + difficulty_c + overall_accuracy_stage1 + (1 | ID) + (1 | Item),
+  data = analysis_perc_diff,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+
+summary(fit_perc_diff)
+
+broom.mixed::tidy(fit_perc_diff, effects = "fixed", conf.int = TRUE, exponentiate = TRUE)
+
+car::Anova(fit_perc_diff, type = 3)
+
+emmeans(fit_perc_diff, pairwise ~ CorrectionTiming | PerceivedLabel, type = "response")$contrasts
+```
+
+## Reproducibility
+
+```{r session-info}
+sessionInfo()
 ```

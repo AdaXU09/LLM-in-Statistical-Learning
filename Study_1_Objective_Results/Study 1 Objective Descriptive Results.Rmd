@@ -1,24 +1,36 @@
 ---
-title: "Study 1 Descriptive"
-author: "Spike"
+title: "Study 1 — Objective Benchmark: Descriptive Results"
+author: "Siyuan Huang"
 date: "2026-01-06"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+set.seed(42)
 ```
 
-## Load Libraries
-```{r, message=FALSE, warning=FALSE}
+# Overview
+
+This document summarises the Study 1 objective benchmark: the per-item
+accuracy of each large language model (platform × model × thinking mode)
+on the six-question statistics task. Table 1 ranks models by overall
+accuracy and flags the two best and two worst, which define the "Top"
+and "Bottom" models carried into Study 2.
+
+## Packages
+
+```{r packages}
 library(readxl)
 library(dplyr)
 library(stringr)
 ```
 
 ## Load Data
-``` {r, message=FALSE, warning=FALSE}
-path <- "Data/Study_1_Objective_Data.xlsx"
+
+```{r load-data}
+path <- "data/Study_1_Objective_Data.xlsx"
 df <- read_excel(path)
 
 if (!("accuracy_rate" %in% names(df))) {
@@ -36,9 +48,23 @@ if (!("accuracy_rate" %in% names(df))) {
 df <- df %>% mutate(accuracy_rate = as.numeric(accuracy_rate))
 ```
 
-## Table 1
-``` {r, message=FALSE, warning=FALSE}
-tbl1 <- df %>%
+## Table 1: Model Accuracy Ranking
+
+Two quantities are reported per platform × model × mode:
+
+- **Accuracy** — items correct / items answered across all 17 items × 10
+  iterations. Each task is item-weighted (Q1 = 6, Q2 = 5, Q3 = 6), so this
+  is *not* the unweighted mean of the three task accuracies.
+- **Stability** — mean of the within-task SDs (SD across the 10 iterations
+  of a task, averaged over the 3 tasks); 0 = identical scores on every
+  repetition. Unlike the SD of the pooled 30 scores, it excludes
+  between-task difficulty.
+
+Models are ranked by accuracy; the two highest and two lowest are flagged
+as those carried into Study 2.
+
+```{r table1}
+tbl1_base <- df %>%
   mutate(
     Platform = case_when(
       software == "chatgpt" ~ "OpenAI",
@@ -68,16 +94,40 @@ tbl1 <- df %>%
       TRUE ~ as.character(model)
     ),
     Mode = if_else(as.integer(Thinking_Model) == 1, "Thinking", "Standard")
-  ) %>%
+  )
+
+# Number of scored items per task (constant within task: Q1 = 6, Q2 = 5,
+# Q3 = 6; 17 items total). Derived from the data so it stays correct if the
+# task set changes. Used to weight each task's accuracy by its item count.
+items_per_task <- tbl1_base %>%
+  filter(accuracy_rate > 0) %>%
+  mutate(task_items = round(sum_score / accuracy_rate)) %>%
+  distinct(question, task_items)
+
+tbl1_base <- tbl1_base %>%
+  left_join(items_per_task, by = "question")
+
+# Within-iteration (run-to-run) stability: SD across the 10 iterations of
+# each task, then averaged over the 3 tasks. 0 = perfectly stable.
+stability <- tbl1_base %>%
+  group_by(Platform, Model, Mode, question) %>%
+  summarise(task_sd = sd(accuracy_rate, na.rm = TRUE), .groups = "drop") %>%
+  group_by(Platform, Model, Mode) %>%
+  summarise(Stability = mean(task_sd, na.rm = TRUE), .groups = "drop")
+
+tbl1 <- tbl1_base %>%
   group_by(Platform, Model, Mode) %>%
   summarise(
     n = n(),
-    M = mean(accuracy_rate, na.rm = TRUE),
-    SD = sd(accuracy_rate, na.rm = TRUE),
+    # Item-weighted accuracy: total items correct / total items answered
+    # (each task contributes in proportion to its number of items).
+    M = weighted.mean(accuracy_rate, w = task_items, na.rm = TRUE),
     .groups = "drop"
   ) %>%
+  left_join(stability, by = c("Platform", "Model", "Mode")) %>%
   mutate(
-    `Overall accuracy M(SD)` = sprintf("%.2f (%.2f)", M, SD)
+    Accuracy = sprintf("%.2f", M),
+    Stability = sprintf("%.2f", Stability)
   ) %>%
   arrange(desc(M), Platform, Model) %>%
   mutate(
@@ -88,7 +138,13 @@ tbl1 <- df %>%
       TRUE ~ ""
     )
   ) %>%
-  select(Rank, Platform, Model, Mode, `Overall accuracy M(SD)`, `Used in Study 2`, n)
+  select(Rank, Platform, Model, Mode, Accuracy, Stability, `Used in Study 2`, n)
 
 tbl1
+```
+
+## Reproducibility
+
+```{r session-info}
+sessionInfo()
 ```

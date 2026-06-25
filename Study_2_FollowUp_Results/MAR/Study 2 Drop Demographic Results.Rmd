@@ -1,0 +1,240 @@
+---
+title: "Study 2 — Dropout vs. Completer: Demographic Comparison"
+author: "Siyuan Huang"
+date: "2025-07-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+set.seed(42)
+```
+
+# Overview
+
+This document compares the demographic composition of Study 2 follow-up
+**completers** (`drop == 0`) and **non-completers** (`drop == 1`) to
+assess whether attrition was related to background characteristics.
+
+The sample is the full randomised sample after excluding participants
+with a Stage-1 baseline (task 0) accuracy of `>= 0.90` (the ceiling-effect
+screen applied throughout Study 2). For each demographic variable we
+report the distribution by dropout status and a chi-square test of
+independence; a non-significant test indicates attrition was unrelated to
+that characteristic.
+
+## Packages
+
+```{r packages}
+library(readxl)
+library(janitor)
+library(dplyr)
+library(tidyr)
+library(openxlsx)
+```
+
+## Load and Filter Data
+
+The ceiling-effect screen (`stage1_task0_accuracy < 0.9`) defines the
+sample; `Label` is ordered AI < AI + Human < Human.
+
+```{r load-data}
+df <- read_excel("data/Study_2_Full_Data.xlsx")
+
+df <- df %>%
+  filter(stage1_task0_accuracy < 0.9) %>%
+  mutate(Label = factor(Label, levels = c("AI", "AI Human", "Human")))
+```
+
+## Descriptive Distributions by Dropout Status
+
+Each table gives the count and within-group (by `drop`) percentage for
+one variable.
+
+### Dropout × Condition (Label)
+
+```{r dist-label}
+label_table <- df %>%
+  group_by(drop, Label) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+label_table
+```
+
+### Dropout × Gender
+
+```{r dist-gender}
+gender_table <- df %>%
+  group_by(drop, Gender) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+gender_table
+```
+
+### Dropout × Age
+
+```{r dist-age}
+age_table <- df %>%
+  group_by(drop, Age) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+age_table
+```
+
+### Dropout × Identity
+
+```{r dist-identity}
+identity_table <- df %>%
+  group_by(drop, Identity) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+identity_table
+```
+
+### Dropout × Field
+
+```{r dist-field}
+field_table <- df %>%
+  group_by(drop, Field) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+field_table
+```
+
+### Dropout × Statistics Background
+
+```{r dist-stats-background}
+statsbackground_table <- df %>%
+  group_by(drop, Stats_Background) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+statsbackground_table
+```
+
+### Dropout × LLM Use Frequency
+
+```{r dist-llm-frequency}
+llm_freq_table <- df %>%
+  group_by(drop, Used_LLM_Frequency) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+llm_freq_table
+```
+
+### Dropout × LLM Use Hours
+
+```{r dist-llm-hours}
+llm_hours_table <- df %>%
+  group_by(drop, Used_LLM_Hours) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(drop) %>%
+  mutate(percent = round(100 * n / sum(n), 1)) %>%
+  ungroup()
+
+llm_hours_table
+```
+
+## Chi-Square Tests (Dropout × Demographics)
+
+Each test evaluates whether the demographic variable is independent of
+dropout status.
+
+```{r chi-square-tests}
+label_chi      <- chisq.test(table(df$drop, df$Label))
+gender_chi     <- chisq.test(table(df$drop, df$Gender))
+age_chi        <- chisq.test(table(df$drop, df$Age))
+identity_chi   <- chisq.test(table(df$drop, df$Identity))
+field_chi      <- chisq.test(table(df$drop, df$Field))
+background_chi <- chisq.test(table(df$drop, df$Stats_Background))
+frequency_chi  <- chisq.test(table(df$drop, df$Used_LLM_Frequency))
+hours_chi      <- chisq.test(table(df$drop, df$Used_LLM_Hours))
+
+label_chi
+gender_chi
+age_chi
+identity_chi
+field_chi
+background_chi
+frequency_chi
+hours_chi
+```
+
+## Export Results
+
+Export is disabled by default. Uncomment the block below to write the
+distribution tables and the chi-square summary to an Excel workbook.
+
+```{r export-results}
+test_results <- data.frame(
+  Variable = c(
+    "Label", "Gender", "Age", "Identity", "Field",
+    "Stats_Background", "Used_Frequency", "Used_Hours"
+  ),
+  Test = rep("Chi-square", 8),
+  Statistic = c(
+    as.numeric(label_chi$statistic),
+    as.numeric(gender_chi$statistic),
+    as.numeric(age_chi$statistic),
+    as.numeric(identity_chi$statistic),
+    as.numeric(field_chi$statistic),
+    as.numeric(background_chi$statistic),
+    as.numeric(frequency_chi$statistic),
+    as.numeric(hours_chi$statistic)
+  ),
+  p_value = c(
+    label_chi$p.value,
+    gender_chi$p.value,
+    age_chi$p.value,
+    identity_chi$p.value,
+    field_chi$p.value,
+    background_chi$p.value,
+    frequency_chi$p.value,
+    hours_chi$p.value
+  )
+)
+
+all_tables <- list(
+  Label_Distribution    = label_table,
+  Gender_Distribution   = gender_table,
+  Age_Distribution      = age_table,
+  Identity_Distribution = identity_table,
+  Field_Distribution    = field_table,
+  Stats_Background      = statsbackground_table,
+  LLM_Use_Frequency     = llm_freq_table,
+  LLM_Use_Hours         = llm_hours_table,
+  Statistical_Tests     = test_results
+)
+
+write.xlsx(
+  all_tables,
+  file = "results/MAR/Baseline/Demographic_Results_Drop.xlsx"
+)
+```
+
+## Reproducibility
+
+```{r session-info}
+sessionInfo()
+```

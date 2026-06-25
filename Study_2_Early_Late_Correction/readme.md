@@ -1,82 +1,53 @@
-# Study 2 — Early vs. Late Correction Analysis
+# Study 2 — Early vs. Late Correction (Exploratory)
 
-This folder contains the data and R code for the correction timing analysis in Study 2, examining whether participants who corrected a wrong answer early (by Stage 2) retain that knowledge better at follow-up than those who corrected it later (by Stage 3 only).
+Exploratory item-level analysis of whether misconceptions corrected early (by
+Stage 2, under the explanation alone) are retained at follow-up better than those
+corrected late (only after Stage 3 answer disclosure), and whether this depends
+on source label.
 
----
+## Data (`data/`)
 
-## Data Description
-
-All data files are located in the `data/` subdirectory.
-
-### Input Files
-
-| File | Description |
-|------|-------------|
-| `correction_raw_data.xlsx` | Raw item-level response data with stage and follow-up answers for all participants |
-| `correction_processed_data.xlsx` | Preprocessed version of the correction dataset |
-
-### Key Variables (in `correction_raw_data.xlsx`)
+`correction_raw_data.xlsx` — raw item-level responses with stage and follow-up answers.
 
 | Variable | Description |
 |----------|-------------|
 | `ID` | Participant identifier |
-| `Label` | Experimental condition (`AI` / `AI Human` / `Human`) |
+| `Label` | Condition (`AI` / `AI Human` / `Human`) |
 | `overall_accuracy_stage1` | Stage 1 overall accuracy (covariate) |
-| `stage1_t[1-3]_q[1-6]` | Stage 1 responses per task and item |
-| `stage2_t[1-3]_q[1-6]` | Stage 2 responses per task and item |
-| `stage3_t[1-3]_q[1-6]` | Stage 3 responses per task and item |
+| `stage[1-3]_t[1-3]_q[1-6]` | Stage 1–3 responses per task and item |
 | `follow_up_t[1-3]_q[1-6]` | Follow-up responses per task and item |
 
-**Processed variables:**
+**Processed**
 
 | Variable | Description |
 |----------|-------------|
-| `S1c`, `S2c`, `S3c`, `FUc` | Boolean correctness indicators per stage |
-| `EarlyCorrected` | `1` = corrected by Stage 2; `0` = corrected only by Stage 3 |
+| `S1c`, `S2c`, `S3c`, `FUc` | Boolean correctness per stage |
+| `CorrectionTiming` | `Early` (corrected by Stage 2) vs. `Late` (only by Stage 3) — main predictor |
+| `EarlyCorrected` | 0/1 recoding (`1` = Early); outcome in the S3 selection test |
+| `difficulty_c` | Item-difficulty proxy: centered Stage-1 full-sample accuracy (larger = easier) |
 | `Item` / `Task` | Item and task identifiers (factors) |
 
-**Item truth key:**
+**Item truth key:** t1 q1–q6 `FALSE`; t2 q1–q5 `FALSE`; t3 q1 `FALSE`, q2–q4 `TRUE`, q5 `FALSE`, q6 `TRUE`.
 
-| Task | Items | Correct Answer |
-|------|-------|----------------|
-| t1 | q1–q6 | All `FALSE` |
-| t2 | q1–q5 | All `FALSE` |
-| t3 | q1 | `FALSE` |
-| t3 | q2–q4 | `TRUE` |
-| t3 | q5 | `FALSE` |
-| t3 | q6 | `TRUE` |
+**Analysis subset:** `S1c == FALSE` and `(S2c | S3c)` and `!is.na(FUc)` (participants with ≥1 follow-up response).
 
-**Inclusion criteria:**
-- Only participants with at least one follow-up response are included
-- Analysis subset: `S1c == FALSE` and `(S2c | S3c)` and `!is.na(FUc)`
+## Notebook
 
----
-
-## Code Description
-
-### Analysis Files (R)
-
-| File | Description |
-|------|-------------|
-| `Comparison.Rmd` | Full correction timing analysis: data loading, item scoring, and long-format pivot; subset to early/late correctors with follow-up; descriptive table of follow-up accuracy by `Label` and `EarlyCorrected` group; primary logistic mixed model (GLMM) for follow-up correctness with `EarlyCorrected * Label + Task + Stage 1 accuracy + (1\|ID) + (1\|Item)`; odds ratios with 95% CIs; Type III ANOVA and post-hoc `emmeans` contrasts; model comparison (with/without Task interaction) |
-
-**Primary model formula:**
+`Comparison.Rmd` — item scoring and long-format pivot; difficulty-controlled
+logistic mixed model for follow-up correctness, with descriptives, odds ratios
+(95% CI), Type-III ANOVA, and `emmeans` contrasts (including condition-specific
+Early-vs-Late odds ratios). Supplementary/sensitivity sections (S1–S7): model
+without difficulty; label effects among corrected items (±difficulty); selection
+test on early/late difficulty composition; early-corrected subset (±difficulty);
+manipulation-passers-only; and perceived (as-recalled) label.
 
 ```r
-glmer(FUc ~ EarlyCorrected * Label + Task + overall_accuracy_stage1 +
+glmer(FUc ~ CorrectionTiming * Label + Task + difficulty_c + overall_accuracy_stage1 +
         (1 | ID) + (1 | Item),
-      data = analysis, family = binomial)
+      data = analysis_diff, family = binomial)
 ```
 
----
+Results print to the rendered HTML; no workbooks are written.
 
-## Software Requirements
-
-**R (version 4.0+):**
-`readxl`, `dplyr`, `tidyr`, `stringr`, `lme4`, `broom.mixed`, `car`, `emmeans`, `parameters`, `performance`
-
----
-
-## Output
-
-Results are printed directly to R output.
+Packages (pinned in the top-level `renv.lock`): `readxl`, `dplyr`, `tidyr`,
+`stringr`, `lme4`, `broom.mixed`, `car`, `emmeans`, `parameters`, `performance`.

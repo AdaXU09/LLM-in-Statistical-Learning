@@ -1,0 +1,144 @@
+---
+title: "Adjust P (MAR) — Moderation Multiple-Comparison Correction"
+author: "Siyuan Huang"
+date: "2026-05-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(42)
+```
+
+## Multiple-comparison correction for H3 moderation effects (MAR 175 & Follow-Up Only 84)
+
+This corrects p-values for the H3 attitude-change **moderation** analysis for
+**both** the MAR full sample (175) and the Follow-Up Only completer sample (84),
+under one scheme so the two are comparable. Two points define the correction
+family:
+
+1. **Only the focal moderation terms enter the family.** The hypothesis is
+   *whether the moderator alters the change over `Phase` (and its dependence on
+   `Label`)* — i.e. the interaction terms involving the moderator. Main effects
+   (`Phase`, `Label`, `ModeratorScore`) and covariates (`Age`, `Gender`,
+   `Field`, `Used_LLM_Hours`, `BaselineScore`) are not tested and are excluded
+   (including them inflated the family ~3× and made Holm far too conservative).
+2. **`mod == outcome` baseline-adjusted models are dropped** (`BaselineScore`
+   models with no `ModeratorScore` term are not moderation tests).
+
+Family = focal terms, corrected **within each DV** and **separately for PF
+(Pre→Follow) and PPF (Pre→Post→Follow)** (different outcome sets and phase
+structure). Holm (FWER) and BH (FDR) both reported; for an exploratory
+10-moderator screen **BH/FDR is primary**, Holm a conservative check.
+
+```{r multiple-comparison-correction-for-h3-moderation-1, message=FALSE, warning=FALSE, echo=TRUE}
+library(dplyr)
+library(readxl)
+library(openxlsx)
+
+# Focal moderation terms = interaction terms involving the moderator.
+# If a single focal term is pre-specified per model, set focal_terms to just
+# that one (e.g. "Phase:ModeratorScore") to shrink the family to one test per
+# outcome x moderator.
+focal_terms <- c(
+  "Phase:ModeratorScore",
+  "Label:ModeratorScore",
+  "Phase:Label:ModeratorScore"
+)
+
+adjust_moderation <- function(path_in, path_out, analysis_label) {
+  mods <- read_xlsx(path_in)
+
+  mods_focal <- mods %>%
+    filter(DV != Moderator) %>%        # drop mod == outcome baseline models
+    filter(Term %in% focal_terms)      # keep only focal moderation terms
+
+  mods_adj <- mods_focal %>%
+    group_by(DV) %>%
+    mutate(
+      n_in_family = n(),
+      p_holm = p.adjust(p_value, method = "holm"),
+      p_BH   = p.adjust(p_value, method = "BH")
+    ) %>%
+    ungroup() %>%
+    mutate(Analysis = analysis_label, .before = 1) %>%
+    arrange(DV, p_value)
+
+  if (!dir.exists(dirname(path_out))) {
+    dir.create(dirname(path_out), recursive = TRUE)
+  }
+  write.xlsx(mods_adj, path_out, overwrite = TRUE)
+
+  cat("\n===", analysis_label, "=== family sizes per DV:\n")
+  print(mods_adj %>% distinct(DV, n_in_family))
+  cat("\nSurviving BH < .05:\n")
+  print(as.data.frame(mods_adj %>% filter(p_BH < 0.05)))
+  cat("\nSurviving Holm < .05:\n")
+  print(as.data.frame(mods_adj %>% filter(p_holm < 0.05)))
+
+  mods_adj
+}
+
+# --- MAR sample (175) -------------------------------------------------------
+mar_pf <- adjust_moderation(
+  "results/MAR/H3/H3_Attitude_Longterm_Moderation_Summary_PF.xlsx",
+  "results/MAR/H3/H3_Moderation_Padjust_PF.xlsx",
+  "MAR | Pre-Follow"
+)
+
+mar_ppf <- adjust_moderation(
+  "results/MAR/H3/H3_Attitude_Longterm_Moderation_Summary_PPF.xlsx",
+  "results/MAR/H3/H3_Moderation_Padjust_PPF.xlsx",
+  "MAR | Pre-Post-Follow"
+)
+
+# --- Follow-Up Only sample (84, completer) ---------------------------------
+# This Rmd lives in MAR/; the Follow-Up Only results are in the sibling
+# "Follow-Up Completers Only/" folder, hence the "../Follow-Up Completers Only/"
+# prefix.
+fu_pf <- adjust_moderation(
+  "../Follow-Up Completers Only/results/Follow-Up Activity/H3/H3_Attitude_Longterm_Moderation_Summary_PF.xlsx",
+  "../Follow-Up Completers Only/results/Follow-Up Activity/H3/H3_Moderation_Padjust_PF.xlsx",
+  "FollowUpOnly | Pre-Follow"
+)
+
+fu_ppf <- adjust_moderation(
+  "../Follow-Up Completers Only/results/Follow-Up Activity/H3/H3_Attitude_Longterm_Moderation_Summary_PPF.xlsx",
+  "../Follow-Up Completers Only/results/Follow-Up Activity/H3/H3_Moderation_Padjust_PPF.xlsx",
+  "FollowUpOnly | Pre-Post-Follow"
+)
+```
+
+## Multiple-comparison correction for H3 Performance & Confidence moderation (MAR 175 & Follow-Up Only)
+
+Same scheme for the accuracy and confidence long-term moderation models, for
+**both** samples. These span the four phases (`stage1`/`stage2`/`stage3`/`follow`)
+with `Phase * Label * ModeratorScore`, so the focal family matches the attitude
+analysis: the moderator interactions. The `DV != Moderator` filter is a no-op
+and no baseline-adjusted models exist to drop. Family corrected **within each
+DV** (accuracy, confidence); Holm and BH reported, BH/FDR primary.
+
+```{r multiple-comparison-correction-for-h3-performance-1, message=FALSE, warning=FALSE, echo=TRUE}
+mar_perf_conf <- adjust_moderation(
+  "results/MAR/H3/H3_Performance_Confidence_Longterm_Moderation_Summary.xlsx",
+  "results/MAR/H3/H3_Performance_Confidence_Moderation_Padjust.xlsx",
+  "MAR | Performance & Confidence (Stage1-3, Follow)"
+)
+
+# --- Follow-Up Only sample (completer) -------------------------------------
+# This Rmd lives in MAR/; the Follow-Up Only results are in the sibling
+# "Follow-Up Completers Only/" folder, hence the "../Follow-Up Completers Only/"
+# prefix.
+fu_perf_conf <- adjust_moderation(
+  "../Follow-Up Completers Only/results/Follow-Up Activity/H3/H3_Performance_Confidence_Longterm_Moderation_Summary.xlsx",
+  "../Follow-Up Completers Only/results/Follow-Up Activity/H3/H3_Performance_Confidence_Moderation_Padjust.xlsx",
+  "FollowUpOnly | Performance & Confidence (Stage1-3, Follow)"
+)
+```
+
+## Reproducibility
+
+```{r session-info}
+sessionInfo()
+```

@@ -1,50 +1,29 @@
-# Study 1 — Objective LLM Performance Analysis
+# Study 1 — Objective LLM Performance
 
-This folder contains the data and R code for the objective performance analyses in Study 1, examining how LLM accuracy and response stability differ across models and thinking modes on statistics tasks.
+Objective accuracy and response stability of 15 LLMs across models and thinking
+modes on the three statistical-reasoning tasks.
 
----
+## Data (`data/`)
 
-## Data Description
-
-All data files are located in the `data/` subdirectory.
-
-### Input Files
-
-| File | Description |
-|------|-------------|
-| `Study_1_Objective_Data.xlsx` | Item-level accuracy data for all LLMs |
-
-### Key Variables
+`Study_1_Objective_Data.xlsx` — item-level accuracy for all LLMs.
 
 | Variable | Description |
 |----------|-------------|
-| `software` | LLM platform (`chatgpt` / `deepseek` / `tongyi` / `gemini` / `claude` / `Grok`) |
-| `model` | Specific model version (e.g., `gpt-4o`, `DeepSeek-R1`) |
-| `Thinking_Model` | Whether thinking/reasoning mode was enabled (`1` = Yes, `0` = No) |
-| `question` | Statistics question identifier |
-| `iteration` | Repeated-run index (for stability estimation) |
-| `accuracy_rate` | Proportion correct across scored items (0–1); derived from `sum_score / 6` or `score1`–`score6` if not pre-computed |
+| `software` | Platform (`chatgpt` / `deepseek` / `tongyi` / `gemini` / `claude` / `Grok`) |
+| `model` | Model version (e.g., `gpt-4o`, `DeepSeek-R1`) |
+| `Thinking_Model` | Thinking/reasoning mode enabled (`1` = yes, `0` = no) |
+| `question` | Question identifier |
+| `iteration` | Repeated-run index (for stability) |
+| `accuracy_rate` | Proportion correct (0–1); from `sum_score / 6`, or `score1`–`score6` if not pre-computed |
 
----
-
-## Code Description
-
-### Analysis Files (R)
+## Notebooks
 
 | File | Description |
 |------|-------------|
-| `Study 1 Objective Descriptive Results.Rmd` | Descriptive summary table (Table 1): ranks all models by mean accuracy; flags top and bottom models used in Study 2 |
-| `Study 1 Objective Model Results.Rmd` | Mixed-effects models for accuracy and stability (SD): tests effect of thinking mode, question type, and platform on logit-transformed proportion correct and SD |
+| `Study 1 Objective Descriptive Results.Rmd` | Table 1: models ranked by mean accuracy; flags top/bottom models carried into Study 2 |
+| `Study 1 Objective Model Results.Rmd` | Mixed-effects models for accuracy and stability (SD) testing thinking mode, question type, and platform |
 
----
+Results print to the rendered HTML; no workbooks are written.
 
-## Software Requirements
-
-**R (version 4.0+):**
-`readxl`, `dplyr`, `stringr`, `lme4`, `lmerTest`, `emmeans`, `effectsize`, `report`
-
----
-
-## Output
-
-Both scripts print results directly to the R output.
+Packages (versions pinned in the top-level `renv.lock`): `readxl`, `dplyr`,
+`stringr`, `lme4`, `lmerTest`, `emmeans`, `effectsize`, `report`.

@@ -1,0 +1,149 @@
+---
+title: "Study 1 — Subjective Ratings: Descriptive Results"
+author: "Siyuan Huang"
+date: "2025-07-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+set.seed(42)
+```
+
+# Overview
+
+This document summarises the Study 1 subjective ratings: human raters
+(students and instructors) scored model responses on four dimensions
+(statistical accuracy, clarity and structure, conceptual depth, and
+pedagogical effectiveness). Ratings are reshaped to long format and
+summarised overall and by model group, rater profession, model, task,
+and dimension. The "Top"/"Bottom" model grouping mirrors the objective
+benchmark ranking.
+
+## Packages
+
+```{r packages}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stringr)
+```
+
+## Load Data
+
+```{r load-data}
+df <- read_excel("data/Study_1_Subjective_Data.xlsx")
+head(df)
+```
+
+## Recode Factors
+
+```{r factor-recode}
+df <- df %>%
+  mutate(
+    Model = factor(Model),
+    Profession = factor(Profession),
+    ID = factor(ID)
+  )
+```
+
+## Reshape to Long Format
+
+```{r long-format}
+df_long <- df %>%
+  pivot_longer(
+    cols = c(
+      Statistical_Accuracy,
+      Clarity_and_Structure,
+      Conceptual_Depth,
+      Pedagogical_Effectiveness
+    ),
+    names_to = "Dimension",
+    values_to = "Rating"
+  )
+df_long
+```
+
+## Assign Model Group
+
+Models are grouped into Top, Bottom, or Other based on the objective
+benchmark ranking.
+
+```{r model-group}
+df_long_tb <- df_long %>%
+  mutate(
+    ModelGroup = case_when(
+      str_detect(Model, regex("ChatGPT_4o", ignore_case = TRUE)) ~ "Top",
+      str_detect(Model, regex("ChatGPT_o1", ignore_case = TRUE)) ~ "Top",
+      str_detect(Model, regex("Grok3", ignore_case = TRUE)) ~ "Bottom",
+      str_detect(Model, regex("Gemini_2\\.0", ignore_case = TRUE)) ~ "Bottom",
+      TRUE ~ "Other"
+    ),
+    ModelGroup = factor(ModelGroup, levels = c("Top", "Bottom", "Other"))
+  )
+```
+
+## Top vs. Bottom: Overall Summary
+
+```{r top-bottom-overall}
+TopBottom_comparison_overall <- df_long_tb %>%
+  group_by(ModelGroup) %>%
+  summarise(
+    Mean_Rating = mean(Rating, na.rm = TRUE),
+    SD_Rating = sd(Rating, na.rm = TRUE),
+    .groups = "drop"
+  )
+TopBottom_comparison_overall
+```
+
+## Student Summary by Model and Task
+
+```{r student-summary}
+df_long_tb_stu <- df_long_tb %>%
+  filter(Profession == "Student")
+
+stu <- df_long_tb_stu %>%
+  group_by(Model, Task) %>%
+  summarise(
+    Mean_Rating = mean(Rating, na.rm = TRUE),
+    SD_Rating = sd(Rating, na.rm = TRUE),
+    .groups = "drop"
+  )
+stu
+```
+
+## Instructor Summary by Model and Task
+
+```{r instructor-summary}
+df_long_tb_ins <- df_long_tb %>%
+  filter(Profession == "Instructor")
+
+ins <- df_long_tb_ins %>%
+  group_by(Model, Task) %>%
+  summarise(
+    Mean_Rating = mean(Rating, na.rm = TRUE),
+    SD_Rating = sd(Rating, na.rm = TRUE),
+    .groups = "drop"
+  )
+ins
+```
+
+## Full Summary by Dimension, Model, Task, and Profession
+
+```{r full-summary}
+all <- df_long_tb %>%
+  group_by(Dimension, Model, Task, Profession) %>%
+  summarise(
+    Mean_Rating = mean(Rating, na.rm = TRUE),
+    SD_Rating = sd(Rating, na.rm = TRUE),
+    .groups = "drop"
+  )
+all
+```
+
+## Reproducibility
+
+```{r session-info}
+sessionInfo()
+```

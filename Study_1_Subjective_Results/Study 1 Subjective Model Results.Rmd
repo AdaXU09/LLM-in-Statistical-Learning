@@ -1,0 +1,236 @@
+---
+title: "Study 1 — Subjective Ratings: Mixed Models"
+author: "Siyuan Huang"
+date: "2025-04-25"
+output:
+  cleanrmd::html_document_clean:
+    theme: marx
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  highlight = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+
+set.seed(42)
+```
+
+# Overview
+
+This document models overall response quality (the mean of the four
+rating dimensions) for Top vs. Bottom models, as judged by the two rater
+groups (students, instructors). The primary model (`model1`) clusters
+repeated ratings on the explanation output (`Model × Task × Iteration`)
+via `(1 | Explanation)` — the unit the eight raters score in common —
+together with `(1 | Rater)`. This primary model is reported in full with
+Type-III ANOVA, effect sizes, post-hoc contrasts, and diagnostics. A
+supplementary section then refits the model with random effects of `(1 | Attempt)` together with `(1 | Rater)`.
+
+## Packages
+
+```{r packages}
+library(readxl)
+library(dplyr)
+library(stringr)
+library(lme4)
+library(lmerTest)
+library(car)
+library(effectsize)
+library(emmeans)
+library(performance)
+library(report)
+library(ggplot2)
+```
+
+## Load Data
+
+```{r load-data}
+df <- read_excel("data/Study_1_Subjective_Data.xlsx")
+head(df)
+```
+
+## Recode Core Variables
+
+Design variables are coerced to factors; a unique `Rater` identifier and
+the composite `OverallQuality` outcome are constructed, and models are
+grouped into Top/Bottom/Other from the objective benchmark ranking.
+
+```{r recode-core}
+df <- df %>%
+  mutate(
+    Model = factor(Model),
+    Profession = factor(Profession),
+    Task = factor(Task),
+    Iteration = factor(Iteration),
+    ID = factor(ID),
+    RaterGroup = Profession,
+    Attempt = Iteration,
+    Rater = factor(paste(RaterGroup, ID, sep = "_")),
+    # Explanation = the unique output that all raters score in common
+    # (Model × Task × Iteration), used as the repeated-measures
+    # clustering unit in the primary model.
+    Explanation = factor(paste(Model, Task, Iteration, sep = "_")),
+    OverallQuality = rowMeans(
+      across(
+        c(
+          Statistical_Accuracy,
+          Clarity_and_Structure,
+          Conceptual_Depth,
+          Pedagogical_Effectiveness
+        )
+      ),
+      na.rm = TRUE
+    ),
+    ModelGroup = case_when(
+      str_detect(Model, regex("ChatGPT_4o", ignore_case = TRUE)) ~ "Top",
+      str_detect(Model, regex("ChatGPT_o1", ignore_case = TRUE)) ~ "Top",
+      str_detect(Model, regex("Grok3", ignore_case = TRUE)) ~ "Bottom",
+      str_detect(Model, regex("Gemini_2\\.0", ignore_case = TRUE)) ~ "Bottom",
+      TRUE ~ "Other"
+    ),
+    ModelGroup = factor(ModelGroup, levels = c("Bottom", "Top", "Other"))
+  )
+
+# Sanity check: number of unique explanation outputs, and how many raters
+# score each one (should be a constant panel size of 8).
+length(levels(df$Explanation))
+table(table(df$Explanation))
+```
+
+## Filter Top and Bottom Models
+
+```{r filter-top-bottom}
+df_tb <- df %>%
+  filter(ModelGroup %in% c("Top", "Bottom")) %>%
+  droplevels()
+```
+
+## Model Fitting
+
+### Raw Data Plot
+
+```{r raw-plot}
+ggplot(df, aes(x = ModelGroup, y = OverallQuality)) +
+  geom_point(aes(color = Rater)) +
+  geom_smooth(method = "lm", se = FALSE, aes(group = Rater, color = Rater)) +
+  facet_wrap(~Rater) +
+  theme_minimal()
+```
+
+### Model 1 — Primary: `(1 | Rater) + (1 | Explanation)`
+
+```{r model1}
+# Model 1 (primary): repeated ratings are clustered on the
+# explanation output (Model × Task × Iteration) via (1 | Explanation),
+# the unit the 8 raters score in common.
+model1 <- lmer(
+  OverallQuality ~ ModelGroup * RaterGroup * Task +
+    (1 | Rater) + (1 | Explanation),
+  data = df
+)
+
+summary(model1)
+```
+
+### Standardised Parameters
+
+```{r model1-standardized}
+standardize_parameters(model1)
+```
+
+### Type-III ANOVA and Effect Sizes
+
+```{r model1-anova}
+aov_model1 <- anova(model1)
+aov_model1
+eta_squared(model1)
+```
+
+### Post-hoc
+
+```{r model1-posthoc}
+emmeans(model1, pairwise ~ ModelGroup, infer = c(TRUE, TRUE))
+emmip(model1, RaterGroup ~ ModelGroup, CIs = TRUE)
+```
+
+```{r model1-posthoc-interaction}
+emmeans(model1, pairwise ~ ModelGroup * RaterGroup, infer = c(TRUE, TRUE))
+```
+
+```{r model1-report}
+report(aov_model1)
+```
+
+### Diagnostics
+
+```{r model1-diagnostics}
+performance::check_model(model1)
+performance::check_collinearity(model1)
+
+res <- residuals(model1)
+qqnorm(res)
+qqline(res)
+```
+
+---
+
+# Supplementary Analysis — Original Iteration-Only Clustering
+
+## Refit with `(1 | Attempt)`
+
+```{r model1-attempt}
+model1_attempt <- lmer(
+  OverallQuality ~ ModelGroup * RaterGroup * Task +
+    (1 | Rater) + (1 | Attempt),
+  data = df
+)
+
+summary(model1_attempt)
+```
+
+## Comparing the two clustering structures
+
+```{r model1-attempt-compare}
+compare_performance(model1, model1_attempt, rank = TRUE)
+VarCorr(model1)          # primary: explanation-level SD is non-zero
+VarCorr(model1_attempt)  # iteration-only: Attempt variance is estimated at 0
+```
+
+## Inferential consequence
+
+```{r model1-attempt-anova}
+aov_model1_attempt <- anova(model1_attempt)
+aov_model1_attempt
+```
+
+### Post-hoc
+
+```{r model1-attempt-posthoc}
+emmeans(model1_attempt, pairwise ~ ModelGroup, infer = c(TRUE, TRUE))
+emmip(model1_attempt, RaterGroup ~ ModelGroup, CIs = TRUE)
+```
+
+```{r model1-attempt-posthoc-interaction}
+emmeans(model1_attempt, pairwise ~ ModelGroup * RaterGroup, infer = c(TRUE, TRUE))
+```
+
+Relative to the primary model, the iteration-only structure assigns the
+between-explanation terms (e.g. `ModelGroup`, `ModelGroup:Task`) a larger
+denominator df — 270 versus 30 — and correspondingly smaller standard
+errors. Under this structure the `ModelGroup × Task` interaction reaches
+p ≈ .034, whereas under the explanation-level structure it is p ≈ .072.
+The main `ModelGroup` effect and the `ModelGroup × RaterGroup` interaction
+are significant under both structures, so the headline Top > Bottom
+conclusion is unchanged.
+
+## Reproducibility
+
+```{r session-info}
+sessionInfo()
+```

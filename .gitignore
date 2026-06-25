@@ -1,2 +1,82 @@
+# ------------------------------------------------------------------
+# .gitignore — LLM-Stats-Learning
+# Reproducible R analysis pipeline (journal-submission standard).
+# Principle: keep source code, data, committed results, and renv.lock;
+# ignore only machine-generated artifacts, caches, and OS/editor junk.
+# ------------------------------------------------------------------
+
+# --- R session & history -------------------------------------------
 .Rhistory
-__pycache__/
+.Rapp.history
+.RData
+.Ruserdata
+*.Rproj.user/
+.Rproj.user
+
+# --- RStudio / project files ---------------------------------------
+# (Keep *.Rproj itself committed; ignore only user-local state.)
+
+# --- renv ----------------------------------------------------------
+# Keep: renv.lock, renv/activate.R, renv/settings.json (for reproducibility).
+# renv/ already ships its own .gitignore for library/, staging/, etc.
+renv/library/
+renv/local/
+renv/cellar/
+renv/lock/
+renv/python/
+renv/sandbox/
+renv/staging/
+
+# --- knitr / R Markdown / Quarto cache & intermediates -------------
+*_cache/
+*_files/
+/cache/
+*.utf8.md
+*.knit.md
+*-tex2pdf.*
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+.quarto/
+/_site/
+/_book/
+
+# --- Package build artifacts ---------------------------------------
+*.tar.gz
+*.Rcheck/
+.Rd2pdf*
+
+# --- Temporary, backup & lock files --------------------------------
+*~
+*.bak
+*.tmp
+*.swp
+# MS Office lock files (Word/Excel open-document markers)
+~$*
+*.~lock.*
+# Hand-made working copies (e.g. Chinese "副本" / "- 副本" duplicates)
+*副本*
+*- Copy*
+*_copy*
+
+# --- OS-generated files --------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- Editors / IDEs ------------------------------------------------
+.vscode/
+.idea/
+*.code-workspace
+
+# --- Claude Code local state ---------------------------------------
+.claude/settings.local.json

@@ -1,41 +1,52 @@
 ---
-title: "Figure_Study2_Quality_refined"
-author: "lily"
+title: "Figure 4"
+author: "Siyuan Huang"
 date: "2025-12-07"
 output: html_document
 ---
 
-```{r, message = F, warning = F, message = F, warning = F setup, include=FALSE}
+```{r setup, message = F, warning = F, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(42)
 ```
 
 ## Load libraries
-``` {r, message = F, warning = F}
+```{r load-libraries-1, message = F, warning = F}
 library(tidyverse)
 library(readxl)
 library(showtext)
 ```
 
 ## Font and theme settings
-``` {r, message = F, warning = F}
+```{r font-and-theme-settings-1, message = F, warning = F}
 showtext_auto()
 showtext_opts(dpi = 600)
 
-font_add(
-  family = "Arial",
-  regular = "C:/Windows/Fonts/arial.ttf"
+# Register the Arial font if present (its path varies by OS); otherwise fall
+# back to the default sans-serif family so figures render on any machine.
+arial_path <- c(
+  "C:/Windows/Fonts/arial.ttf",                        # Windows
+  "/Library/Fonts/Arial.ttf",                          # macOS
+  "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf"  # Linux (msttcorefonts)
 )
+arial_path <- arial_path[file.exists(arial_path)][1]
 
-theme_set(theme_classic(base_family = "Arial"))
+if (!is.na(arial_path)) {
+  font_add(family = "Arial", regular = arial_path)
+  theme_set(theme_classic(base_family = "Arial"))
+} else {
+  theme_set(theme_classic())
+}
 ```
 
 ## Import data
-``` {r, message = F, warning = F}
+```{r import-data-1, message = F, warning = F}
 df <- read_excel("data/Study_1_Subjective_Data.xlsx")
 ```
 
 ## Data processing and summary statistics
-``` {r, message = F, warning = F}
+```{r data-processing-and-summary-statistics-1, message = F, warning = F}
 df <- df %>%
   mutate(
     Mean_Quality = (Statistical_Accuracy + Clarity_and_Structure +
@@ -69,13 +80,13 @@ summary_data <- df %>%
 ```
 
 ## Color settings
-``` {r, message = F, warning = F}
+```{r color-settings-1, message = F, warning = F}
 profession_colors <- c("Instructor" = "#D55E00", "Student" = "#0072B2")
 errorbar_colors <- c("Instructor" = "#E8A77A", "Student" = "#7AB8D9")
 ```
 
 ## Plot and save figure
-``` {r, message = F, warning = F}
+```{r plot-and-save-figure-1, message = F, warning = F}
 p <- ggplot(
   summary_data,
   aes(x = Model_Name, y = mean, color = Profession, shape = Profession)
@@ -131,4 +142,10 @@ print(p)
 ggsave("figure/Figure_Study1_2.pdf", p, width = 7, height = 5, dpi = 600, bg = "white")
 ggsave("figure/Figure_Study1_2.png", p, width = 7, height = 5, dpi = 600, bg = "white")
 ggsave("figure/Figure_Study1_2.svg", p, width = 7, height = 5, bg = "white")
+```
+
+## Reproducibility
+
+```{r session-info}
+sessionInfo()
 ```

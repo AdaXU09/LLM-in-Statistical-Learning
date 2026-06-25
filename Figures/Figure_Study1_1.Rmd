@@ -1,16 +1,18 @@
 ---
-title: "Figure_Study1_1"
-author: "Spike"
+title: "Figure 3"
+author: "Siyuan Huang"
 date: "2026-01-16"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(42)
 ```
 
 ## Load libraries
-``` {r, message = F, warning = F}
+```{r load-libraries-1, message = F, warning = F}
 library(tidyverse)
 library(readxl)
 library(dplyr)
@@ -24,25 +26,34 @@ library(patchwork)
 ```
 
 ## Font and theme settings
-``` {r, message = F, warning = F}
+```{r font-and-theme-settings-1, message = F, warning = F}
 showtext_auto()
 showtext_opts(dpi = 600)
 
-font_add(
-  family = "Arial",
-  regular = "C:/Windows/Fonts/arial.ttf"
+# Register the Arial font if present (its path varies by OS); otherwise fall
+# back to the default sans-serif family so figures render on any machine.
+arial_path <- c(
+  "C:/Windows/Fonts/arial.ttf",                        # Windows
+  "/Library/Fonts/Arial.ttf",                          # macOS
+  "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf"  # Linux (msttcorefonts)
 )
+arial_path <- arial_path[file.exists(arial_path)][1]
 
-theme_set(theme_classic(base_family = "Arial"))
+if (!is.na(arial_path)) {
+  font_add(family = "Arial", regular = arial_path)
+  theme_set(theme_classic(base_family = "Arial"))
+} else {
+  theme_set(theme_classic())
+}
 ```
 
 ## Import data
-``` {r, message = F, warning = F}
+```{r import-data-1, message = F, warning = F}
 df <- read_excel("data/Study_1_Objective_Data.xlsx")
 ```
 
 ## Model metadata
-``` {r, message = F, warning = F}
+```{r model-metadata-1, message = F, warning = F}
 df <- df %>%
   mutate(model = as.character(model))
 
@@ -72,15 +83,34 @@ model_info <- tibble(
 ```
 
 ## Model-level summary statistics
-``` {r, message = F, warning = F}
+```{r model-level-summary-statistics-1, message = F, warning = F}
+# Number of scored items per task (Q1 = 6, Q2 = 5, Q3 = 6), derived from
+# the data; used to weight accuracy by item count.
+items_per_task <- df %>%
+  filter(accuracy_rate > 0) %>%
+  mutate(task_items = round(sum_score / accuracy_rate)) %>%
+  distinct(question, task_items)
+
+# Run-to-run (within-task) stability: SD across the 10 iterations of each
+# task, averaged over the 3 tasks. 0 = identical scores on every repetition.
+# This is the pure stability index; it does NOT absorb between-task
+# difficulty differences the way an SD pooled over all 30 scores would.
+stability_within <- df %>%
+  group_by(model, question) %>%
+  summarise(task_sd = sd(accuracy_rate), .groups = "drop") %>%
+  group_by(model) %>%
+  summarise(stability_sd = mean(task_sd), .groups = "drop")
+
 model_summary <- df %>%
+  left_join(items_per_task, by = "question") %>%
   group_by(model) %>%
   summarise(
-    accuracy = mean(accuracy_rate),
-    stability_sd = sd(accuracy_rate),
+    # Item-weighted accuracy: total items correct / total items answered.
+    accuracy = sum(sum_score) / sum(task_items),
     n = n(),
     .groups = "drop"
   ) %>%
+  left_join(stability_within, by = "model") %>%
   left_join(model_info, by = "model") %>%
   arrange(desc(accuracy), stability_sd) %>%
   mutate(
@@ -94,7 +124,7 @@ model_summary <- df %>%
 ```
 
 ## Task-level data preparation
-``` {r, message = F, warning = F}
+```{r task-level-data-preparation-1, message = F, warning = F}
 task_data <- df %>%
   left_join(model_info, by = "model") %>%
   mutate(
@@ -108,7 +138,7 @@ task_data <- df %>%
 ```
 
 ## Color settings
-``` {r, message = F, warning = F}
+```{r color-settings-1, message = F, warning = F}
 provider_colors <- c(
   "OpenAI" = "#0072B2",
   "Google" = "#D55E00",
@@ -120,7 +150,7 @@ provider_colors <- c(
 ```
 
 ## Panel (a): Accuracy vs Stability
-``` {r, message = F, warning = F}
+```{r panel-a-accuracy-vs-stability-1, message = F, warning = F}
 model_summary$display_name <- gsub("[\u2013\u2014]", "-", model_summary$display_name)
 model_order <- model_summary$display_name
 
@@ -129,15 +159,15 @@ model_summary <- model_summary %>%
     nudge_x = case_when(
       display_name == "GPT-4o" ~ 0.007,
       display_name == "OpenAI o1" ~ 0.007,
-      display_name == "Grok 3" ~ 0.041,
-      display_name == "Gemini 2.0 Flash" ~ 0.109,
+      display_name == "Grok 3" ~ 0.038,
+      display_name == "Gemini 2.0 Flash" ~ 0.107,
       TRUE ~ 0
     ),
     nudge_y = case_when(
-      display_name == "GPT-4o" ~ 0.012,
-      display_name == "OpenAI o1" ~ 0.024,
-      display_name == "Grok 3" ~ -0.01,
-      display_name == "Gemini 2.0 Flash" ~ 0.0105,
+      display_name == "GPT-4o" ~ 0.004,
+      display_name == "OpenAI o1" ~ 0.008,
+      display_name == "Grok 3" ~ 0.004,
+      display_name == "Gemini 2.0 Flash" ~ 0.004,
       TRUE ~ 0
     ),
     label_x = accuracy + nudge_x,
@@ -165,18 +195,18 @@ panel_a <- ggplot(
     labels = scales::number_format(accuracy = 1, scale = 100)
   ) +
   scale_y_continuous(
-    limits = c(0, 0.28),
-    breaks = seq(0, 0.28, 0.07)
+    limits = c(0, 0.08),
+    breaks = seq(0, 0.08, 0.02)
   ) +
   coord_cartesian(clip = "off") +
-  labs(x = "Accuracy (%)", y = "Stability (SD)") +
+  labs(x = "Accuracy (%)", y = "Stability", color = "Provider", shape = "Mode") +
   theme_classic(base_size = 14)
 
 panel_a
 ```
 
 ## Panel (b): Task-wise accuracy
-``` {r, message = F, warning = F}
+```{r panel-b-task-wise-accuracy-1, message = F, warning = F}
 task_summary <- task_data %>%
   group_by(display_name, provider, mode, task) %>%
   summarise(accuracy = mean(accuracy_rate), .groups = "drop") %>%
@@ -196,18 +226,24 @@ panel_b <- ggplot(
     breaks = seq(0.4, 1.0, 0.15),
     labels = scales::number_format(accuracy = 1, scale = 100)
   ) +
-  labs(x = "Accuracy (%)", y = NULL) +
+  labs(x = "Accuracy (%)", y = NULL, shape = "Task") +
   theme_classic(base_size = 14)
 
 panel_b
 ```
 
 ## Combine panels and save figure
-``` {r, message = F, warning = F}
+```{r combine-panels-and-save-figure-1, message = F, warning = F}
 combined_figure <- panel_a + panel_b +
   plot_layout(widths = c(1.2, 1)) +
   plot_annotation(tag_levels = "a", tag_suffix = ".") &
-  theme(plot.tag = element_text(size = 13, face = "bold"))
+  theme(
+    plot.tag = element_text(size = 13, face = "bold"),
+    axis.title = element_text(size = 13),
+    axis.text = element_text(size = 13),
+    legend.title = element_text(size = 13),
+    legend.text = element_text(size = 13)
+  )
 
 combined_figure
 
@@ -236,4 +272,10 @@ ggsave(
   height = 7,
   bg = "white"
 )
+```
+
+## Reproducibility
+
+```{r session-info}
+sessionInfo()
 ```

@@ -1,16 +1,18 @@
 ---
-title: "Figure_confidence"
-author: "lily"
+title: "Figure 6"
+author: "Siyuan Huang"
 date: "2025-12-07"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(42)
 ```
 
 ## Load libraries
-``` {r, message = F, warning = F}
+```{r load-libraries-1, message = F, warning = F}
 library(tidyverse)
 library(readxl)
 library(dplyr)
@@ -27,32 +29,38 @@ library(patchwork)
 ```
 
 ## Font and theme settings
-``` {r, message = F, warning = F}
+```{r font-and-theme-settings-1, message = F, warning = F}
 showtext_auto()
 showtext_opts(dpi = 600)
 
-font_add(
-  family = "Arial",
-  regular = "C:/Windows/Fonts/arial.ttf"
+# Register the Arial font if present (its path varies by OS); otherwise fall
+# back to the default sans-serif family so figures render on any machine.
+arial_path <- c(
+  "C:/Windows/Fonts/arial.ttf",                        # Windows
+  "/Library/Fonts/Arial.ttf",                          # macOS
+  "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf"  # Linux (msttcorefonts)
 )
+arial_path <- arial_path[file.exists(arial_path)][1]
 
-theme_set(theme_classic(base_family = "Arial"))
+if (!is.na(arial_path)) {
+  font_add(family = "Arial", regular = arial_path)
+  theme_set(theme_classic(base_family = "Arial"))
+} else {
+  theme_set(theme_classic())
+}
 ```
 
 ## Load utilities and import data
-``` {r, message = F, warning = F}
+```{r load-utilities-and-import-data-1, message = F, warning = F}
 source("plot_util_test.R")
 
-data_raw <- read_excel("data/Plot_Data.xlsx", sheet = "raw_data")
+data_raw <- read_excel("data/Plot_Data.xlsx")
 
 data_filtered <- data_raw[data_raw$stage1_task0_accuracy < 0.9, ]
-
-data_filtered <- data_filtered %>%
-  mutate(across(participant_id:last_col(), ~ replace(.x, duration < 180, NA)))
 ```
 
-## Figure 2a: Confidence across stages (follow-up completers)
-``` {r, message = F, warning = F}
+## Panel (a): Confidence across stages (follow-up completers)
+```{r figure-2a-confidence-across-stages-follow-1, message = F, warning = F}
 data_filtered1 <- data_filtered[, c(
   "Label",
   "stage1_task0_confidence",
@@ -63,8 +71,8 @@ data_filtered1 <- data_filtered[, c(
 
 data_filtered2 <- data_filtered1[!is.na(data_filtered1$follow_task0_confidence), ]
 
-df_21 <- data_process_result_new(
-  data = data_filtered2,
+df_21 <- data_preprocessing(
+  data = data_filtered1,
   label_col = c(
     "Label",
     "stage1_task0_confidence",
@@ -146,7 +154,10 @@ fig21 <- ggplot(df_21_1, aes(x = x_plot, y = mean_pct)) +
   geom_segment(x = 2, xend = 3, y = 1, yend = 1, color = "black", linewidth = 0.5) +
   geom_segment(x = 3, xend = 4, y = 1, yend = 1, color = "black", linewidth = 0.5) +
   labs(
-    title = "Self-reported confidence in own answer across stages\n(Follow-up completers only, N = 82)",
+    title = expression(atop(
+      bold("Self-reported confidence in own answer across stages"),
+      bold("(Stage 1-3 ") * bolditalic(N) * bold(" = 175; Follow-up ") * bolditalic(N) * bold(" = 84)")
+    )),
     x = NULL,
     y = "Confidence in answer"
   ) +
@@ -190,9 +201,9 @@ fig21 <- ggplot(df_21_1, aes(x = x_plot, y = mean_pct)) +
 print(fig21)
 ```
 
-## Figure 2b: Confidence attrition check (all participants vs follow-up completers)
-``` {r, message = F, warning = F}
-df_22_1 <- data_process_result_new(
+## Panel (b): Confidence attrition check (all participants vs follow-up completers)
+```{r figure-2b-confidence-attrition-check-all-1, message = F, warning = F}
+df_22_1 <- data_preprocessing(
   data = data_filtered2,
   label_col = c("stage1_task0_confidence", "stage2_task0_confidence", "stage3_task0_confidence"),
   new_columns_name = c("Stage1", "Stage2", "Stage3"),
@@ -209,7 +220,7 @@ df_22_1 <- data_process_result_new(
   groupby_col = NULL
 )
 
-df_22_2 <- data_process_result_new(
+df_22_2 <- data_preprocessing(
   data = data_filtered,
   label_col = c("stage1_task0_confidence", "stage2_task0_confidence", "stage3_task0_confidence"),
   new_columns_name = c("Stage1", "Stage2", "Stage3"),
@@ -232,10 +243,10 @@ df_22_2_plot <- df_22_2$stats_summary
 df_22_2_plot$Label <- "All participants"
 df_22_1_plot$Label <- "Follow-up completers"
 
-df_combined <- bind_rows(df_22_2_plot, df_22_1_plot) %>%
+df_combined <- bind_rows(df_22_1_plot, df_22_2_plot) %>%
   mutate(
     Phase_short = factor(Phase_short, levels = c("Stage 1", "Stage 2", "Stage 3")),
-    Label = factor(Label, levels = c("Follow-up completers", "All participants")),
+    Label = factor(Label, levels = c("All participants", "Follow-up completers")),
     x_plot = as.numeric(Phase_short),
     mean_pct = mean,
     ci_pct = ci95
@@ -252,23 +263,23 @@ fig22 <- ggplot(df_combined, aes(x = x_plot, y = mean_pct)) +
   geom_point(aes(shape = Label, fill = Label), color = "black", size = 4, stroke = 1) +
   scale_shape_manual(
     values = c("All participants" = 21, "Follow-up completers" = 21),
-    labels = c(
-      "All participants" = "All participants (N = 175)",
-      "Follow-up completers" = "Follow-up completers (N = 82)"
+    labels = expression(
+      "All participants (" * italic(N) * " = 175)",
+      "Follow-up completers (" * italic(N) * " = 84)"
     )
   ) +
   scale_fill_manual(
-    values = c("All participants" = "white", "Follow-up completers" = "black"),
-    labels = c(
-      "All participants" = "All participants (N = 175)",
-      "Follow-up completers" = "Follow-up completers (N = 82)"
+    values = c("All participants" = "black", "Follow-up completers" = "white"),
+    labels = expression(
+      "All participants (" * italic(N) * " = 175)",
+      "Follow-up completers (" * italic(N) * " = 84)"
     )
   ) +
   scale_linetype_manual(
-    values = c("All participants" = "dashed", "Follow-up completers" = "solid"),
-    labels = c(
-      "All participants" = "All participants (N = 175)",
-      "Follow-up completers" = "Follow-up completers (N = 82)"
+    values = c("All participants" = "solid", "Follow-up completers" = "dashed"),
+    labels = expression(
+      "All participants (" * italic(N) * " = 175)",
+      "Follow-up completers (" * italic(N) * " = 84)"
     )
   ) +
   scale_x_continuous(
@@ -315,8 +326,8 @@ fig22 <- ggplot(df_combined, aes(x = x_plot, y = mean_pct)) +
 print(fig22)
 ```
 
-## Figure 2c: Willingness to accept materials (Stage 2 vs Stage 3)
-``` {r, message = F, warning = F}
+## Panel (c): Willingness to accept materials (Stage 2 vs Stage 3)
+```{r figure-2c-willingness-to-accept-materials-1, message = F, warning = F}
 data_filtered3_1 <- data_filtered[, c(
   "Label",
   "stage2_task0_willing",
@@ -328,7 +339,7 @@ data_filtered3_1_1 <- data_filtered3_1[!is.na(data_filtered3_1$follow_AI_Self_Ef
 
 data_filtered_3_1 <- data_filtered3_1_1[, c("Label", "stage2_task0_willing", "stage3_task0_willing")]
 
-res_data_new <- data_process_result(
+res_data_new <- data_preprocessing(
   data = data_filtered_3_1,
   label_col = c("Label", "stage2_task0_willing", "stage3_task0_willing"),
   new_columns_name = c("Label", "Stage 2", "Stage 3"),
@@ -343,12 +354,12 @@ res_data_new <- data_process_result(
 
 compters_only <- res_data_new$stats_summary
 
-data23_1 <- data_filtered[, c("ID_x", "Label", "stage2_task0_willing")]
-colnames(data23_1) <- c("ID_x", "Label", "Willing")
+data23_1 <- data_filtered[, c("ID", "Label", "stage2_task0_willing")]
+colnames(data23_1) <- c("ID", "Label", "Willing")
 data23_1$Phase <- "Stage 2"
 
-data23_2 <- data_filtered[, c("ID_x", "Label", "stage3_task0_willing")]
-colnames(data23_2) <- c("ID_x", "Label", "Willing")
+data23_2 <- data_filtered[, c("ID", "Label", "stage3_task0_willing")]
+colnames(data23_2) <- c("ID", "Label", "Willing")
 data23_2$Phase <- "Stage 3"
 
 my_data <- bind_rows(data23_1, data23_2)
@@ -358,9 +369,9 @@ my_data$Label <- factor(my_data$Label, levels = c("AI", "AI Human", "Human"))
 label_map <- c("AI" = "AI", "AI Human" = "AI + Human", "Human" = "Human")
 
 fig23 <- ggplot(my_data, aes(x = Phase, y = Willing)) +
-  geom_line(aes(group = ID_x), color = "gray80", alpha = 0.5, size = 0.5) +
+  geom_line(aes(group = ID), color = "gray80", alpha = 0.5, size = 0.5) +
   geom_hline(yintercept = 3, linetype = "dashed", color = "gray50", linewidth = 0.5) +
-  stat_summary(fun = mean, geom = "line", linetype = "dashed", aes(group = 1, color = Label), size = 0.5) +
+  stat_summary(fun = mean, geom = "line", linetype = "solid", aes(group = 1, color = Label), size = 0.5) +
   stat_summary(fun.data = mean_cl_normal, geom = "errorbar", aes(color = Label), width = 0, size = 0.5) +
   geom_errorbar(
     data = compters_only,
@@ -370,19 +381,20 @@ fig23 <- ggplot(my_data, aes(x = Phase, y = Willing)) +
   geom_line(
     data = compters_only,
     aes(y = mean, group = Label, color = Label),
-    linetype = "solid",
+    linetype = "dashed",
     size = 0.5,
     alpha = 0.8
   ) +
-  stat_summary(
-    fun = mean, geom = "point",
-    shape = 21, fill = "white", stroke = 1,
-    aes(color = Label), size = 4
-  ) +
   geom_point(
     data = compters_only,
-    aes(y = mean, color = Label, fill = Label),
+    aes(y = mean, color = Label),
+    fill = "white",
     shape = 21, stroke = 1, size = 4
+  ) +
+  stat_summary(
+    fun = mean, geom = "point",
+    shape = 21, stroke = 1,
+    aes(color = Label, fill = Label), size = 4
   ) +
   facet_wrap(~Label, nrow = 1, labeller = as_labeller(label_map)) +
   scale_color_manual(
@@ -415,8 +427,8 @@ fig23 <- ggplot(my_data, aes(x = Phase, y = Willing)) +
 print(fig23)
 ```
 
-## Figure 2d: Usefulness of materials (Stage 2 vs Stage 3)
-``` {r, message = F, warning = F}
+## Panel (d): Usefulness of materials (Stage 2 vs Stage 3)
+```{r figure-2d-usefulness-of-materials-stage-1, message = F, warning = F}
 data_filtered3_1 <- data_filtered[, c(
   "Label",
   "stage2_task0_useful",
@@ -428,7 +440,7 @@ data_filtered3_1_1 <- data_filtered3_1[!is.na(data_filtered3_1$follow_AI_Self_Ef
 
 data_filtered_3_1 <- data_filtered3_1_1[, c("Label", "stage2_task0_useful", "stage3_task0_useful")]
 
-res_data_new <- data_process_result(
+res_data_new <- data_preprocessing(
   data = data_filtered_3_1,
   label_col = c("Label", "stage2_task0_useful", "stage3_task0_useful"),
   new_columns_name = c("Label", "Stage 2", "Stage 3"),
@@ -443,12 +455,12 @@ res_data_new <- data_process_result(
 
 compters_only2 <- res_data_new$stats_summary
 
-data24_1 <- data_filtered[, c("ID_x", "Label", "stage2_task0_useful")]
-colnames(data24_1) <- c("ID_x", "Label", "Useful")
+data24_1 <- data_filtered[, c("ID", "Label", "stage2_task0_useful")]
+colnames(data24_1) <- c("ID", "Label", "Useful")
 data24_1$Phase <- "Stage 2"
 
-data24_2 <- data_filtered[, c("ID_x", "Label", "stage3_task0_useful")]
-colnames(data24_2) <- c("ID_x", "Label", "Useful")
+data24_2 <- data_filtered[, c("ID", "Label", "stage3_task0_useful")]
+colnames(data24_2) <- c("ID", "Label", "Useful")
 data24_2$Phase <- "Stage 3"
 
 my_data2 <- bind_rows(data24_1, data24_2)
@@ -456,9 +468,9 @@ my_data2$Phase <- factor(my_data2$Phase, levels = c("Stage 2", "Stage 3"))
 my_data2$Label <- factor(my_data2$Label, levels = c("AI", "AI Human", "Human"))
 
 fig24 <- ggplot(my_data2, aes(x = Phase, y = Useful)) +
-  geom_line(aes(group = ID_x), color = "gray80", alpha = 0.5, size = 0.5) +
+  geom_line(aes(group = ID), color = "gray80", alpha = 0.5, size = 0.5) +
   geom_hline(yintercept = 3, linetype = "dashed", color = "gray50", linewidth = 0.5) +
-  stat_summary(fun = mean, geom = "line", linetype = "dashed", aes(group = 1, color = Label), size = 0.5) +
+  stat_summary(fun = mean, geom = "line", linetype = "solid", aes(group = 1, color = Label), size = 0.5) +
   stat_summary(fun.data = mean_cl_normal, geom = "errorbar", aes(color = Label), width = 0, size = 0.5) +
   geom_errorbar(
     data = compters_only2,
@@ -468,19 +480,20 @@ fig24 <- ggplot(my_data2, aes(x = Phase, y = Useful)) +
   geom_line(
     data = compters_only2,
     aes(y = mean, group = Label, color = Label),
-    linetype = "solid",
+    linetype = "dashed",
     size = 0.5,
     alpha = 0.8
   ) +
-  stat_summary(
-    fun = mean, geom = "point",
-    shape = 21, fill = "white", stroke = 1,
-    aes(color = Label), size = 4
-  ) +
   geom_point(
     data = compters_only2,
-    aes(y = mean, color = Label, fill = Label),
+    aes(y = mean, color = Label),
+    fill = "white",
     shape = 21, stroke = 1, size = 4
+  ) +
+  stat_summary(
+    fun = mean, geom = "point",
+    shape = 21, stroke = 1,
+    aes(color = Label, fill = Label), size = 4
   ) +
   facet_wrap(~Label, nrow = 1, labeller = as_labeller(label_map)) +
   scale_color_manual(
@@ -513,21 +526,21 @@ print(fig24)
 ```
 
 ## P-value tables
-``` {r, message = F, warning = F}
+```{r p-value-tables-1, message = F, warning = F}
 p_values_c <- data.frame(
   All = "Completers",
-  `italic(p)~'= .024'` = "italic(p)~'= .143'",
-  `italic(p)~'= .100'` = "italic(p)~'= .106'",
-  `italic(p)~'= .359'` = "italic(p)~'= .992'",
+  `italic(P)~'= 0.024'` = "italic(P)~'= 0.165'",
+  `italic(P)~'= 0.100'` = "italic(P)~'= 0.104'",
+  `italic(P)~'= 0.359'` = "italic(P)~'= 0.900'",
   check.names = FALSE,
   stringsAsFactors = FALSE
 )
 
 p_values_d <- data.frame(
   ` ` = " ",
-  `italic(p)~'= .023'` = "italic(p)~'= .217'",
-  `italic(p)~'= .069'` = "italic(p)~'= .014'",
-  `italic(p)~'= .810'` = "italic(p)~'= .302'",
+  `italic(P)~'= 0.023'` = "italic(P)~'= 0.264'",
+  `italic(P)~'= 0.069'` = "italic(P)~'= 0.014'",
+  `italic(P)~'= 0.810'` = "italic(P)~'= 0.268'",
   check.names = FALSE,
   stringsAsFactors = FALSE
 )
@@ -616,7 +629,7 @@ table_c <- left_align_first_col(table_c, pad_rel = 0)
 table_d <- left_align_first_col(table_d, pad_rel = 0)
 ```
 
-``` {r, message = F, warning = F}
+```{r p-value-tables-2, message = F, warning = F}
 grid.newpage()
 grid.draw(table_c)
 
@@ -625,7 +638,7 @@ grid.draw(table_d)
 ```
 
 ## Combine panels and save figure
-``` {r, message = F, warning = F}
+```{r combine-panels-and-save-figure-1, message = F, warning = F}
 layout <- "
 AAABBB
 CCCDDD
@@ -666,4 +679,10 @@ print(combined_fig2)
 ggsave("figure/Figure_Study2_2.png", combined_fig2, width = 11, height = 10, dpi = 600, bg = "white")
 ggsave("figure/Figure_Study2_2.pdf", combined_fig2, width = 11, height = 10, dpi = 600, bg = "white")
 ggsave("figure/Figure_Study2_2.svg", combined_fig2, width = 11, height = 10, bg = "white")
+```
+
+## Reproducibility
+
+```{r session-info}
+sessionInfo()
 ```

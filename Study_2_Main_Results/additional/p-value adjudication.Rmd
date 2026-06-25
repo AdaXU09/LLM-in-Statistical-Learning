@@ -1,34 +1,118 @@
 ---
-title: "Adjust P"
-author: "Spike"
-date: "2025-08-11"
+title: "Adjust P (Main) — Moderation Multiple-Comparison Correction"
+author: "Siyuan Huang"
+date: "2026-06-03"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = here::here("Study_2_Main_Results"))
+
+set.seed(42)
 ```
 
-## Adjust p-values for Moderation Effects (Holm & BH)
-```{r, message=FALSE, warning=FALSE, echo=TRUE}
+## Multiple-comparison correction for H3 moderation effects (Main initial-session sample)
+
+This corrects p-values for the Study 2 **main (initial-session)** H3
+**moderation** analyses — attitude-change moderation (Pre → Post) and within-task
+performance / confidence / willingness / usefulness moderation (Stage 1–3) — under
+one scheme so the two are comparable. Two points define the correction family:
+
+1. **Only the focal moderation terms enter the family.** The hypothesis is
+   *whether the moderator alters the change over `Phase`/`Stage` (and its
+   dependence on `Label`)* — i.e. the interaction terms involving the moderator.
+   Main effects and covariates are not tested and are excluded (including them
+   inflated the family and made Holm far too conservative).
+2. **`mod == outcome` baseline-adjusted models are dropped** (`BaselineScore`
+   models are not moderation tests). For the within-task models this is a no-op
+   (accuracy/confidence/willing/useful are never moderators).
+
+A single rule spans both Term conventions — the attitude file's generic
+`ModeratorScore` token (e.g. `Phase:ModeratorScore`) and the within-task file's
+embedded moderator name with `Stage` (e.g. `Stage:Label:pre_AI_Usefulness`): a
+focal term is any interaction (contains `:`) involving the moderator. Family =
+focal terms, corrected **within each DV**. Holm (FWER) and BH (FDR) are both
+reported; for an exploratory multi-moderator screen **BH/FDR is primary**, Holm a
+conservative check.
+
+```{r multiple-comparison-correction-for-h3-moderation-1, message=FALSE, warning=FALSE, echo=TRUE}
 library(dplyr)
-library(openxlsx)
 library(readxl)
-library(bruceR)
+library(openxlsx)
 
-mods <- read_xlsx(
-  "results/"
+# Focal moderation terms = interaction terms involving the moderator. This rule
+# handles both Term conventions in the Study 2 main results:
+#   * attitude file: moderator appears as the generic token "ModeratorScore"
+#   * within-task file: moderator appears as its actual name (row's `Moderator`)
+# Main effects (the moderator alone, Phase/Stage, Label) and covariates have no
+# ":" or do not involve the moderator, so they are excluded from the family.
+adjust_moderation <- function(path_in, path_out, analysis_label) {
+  mods <- read_xlsx(path_in)
+
+  mods_focal <- mods %>%
+    filter(DV != Moderator) %>%          # drop mod == outcome baseline models
+    rowwise() %>%
+    filter(
+      grepl(":", Term) & (
+        grepl("ModeratorScore", Term, fixed = TRUE) |
+          grepl(Moderator, Term, fixed = TRUE)
+      )
+    ) %>%
+    ungroup()
+
+  mods_adj <- mods_focal %>%
+    group_by(DV) %>%
+    mutate(
+      n_in_family = n(),
+      p_holm = p.adjust(p_value, method = "holm"),
+      p_BH   = p.adjust(p_value, method = "BH")
+    ) %>%
+    ungroup() %>%
+    mutate(Analysis = analysis_label, .before = 1) %>%
+    arrange(DV, p_value)
+
+  if (!dir.exists(dirname(path_out))) {
+    dir.create(dirname(path_out), recursive = TRUE)
+  }
+  write.xlsx(mods_adj, path_out, overwrite = TRUE)
+
+  cat("\n===", analysis_label, "=== family sizes per DV:\n")
+  print(mods_adj %>% distinct(DV, n_in_family))
+  cat("\nSurviving BH < .05:\n")
+  print(as.data.frame(mods_adj %>% filter(p_BH < 0.05)))
+  cat("\nSurviving Holm < .05:\n")
+  print(as.data.frame(mods_adj %>% filter(p_holm < 0.05)))
+
+  mods_adj
+}
+
+# --- Attitude change moderation (Pre -> Post) -------------------------------
+attitude <- adjust_moderation(
+  "results/H3/H3_Attitude_Change_Moderation_Summary.xlsx",
+  "results/H3/H3_Attitude_Change_Moderation_Padjust.xlsx",
+  "Main | Attitude Change (Pre-Post)"
 )
+```
 
-mods_adj <- mods %>%
-  group_by(DV) %>%
-  mutate(
-    p_holm = p.adjust(p_value, method = "holm"),
-    p_BH   = p.adjust(p_value, method = "BH")
-  ) %>%
-  ungroup()
+## Multiple-comparison correction for H3 within-task moderation (accuracy, confidence, willing, useful)
 
-bruceR::export(
-  mods_adj,
-  "results/"
+Same scheme for the within-task models (`Stage * Label * Moderator`, Stages
+1–3). The focal family is the moderator interactions (`Stage:<mod>`,
+`Label:<mod>`, `Stage:Label:<mod>`); the `DV != Moderator` filter is a no-op
+and no baseline-adjusted models exist to drop. Family corrected **within each
+DV**; Holm and BH reported, BH/FDR primary.
+
+```{r multiple-comparison-correction-for-h3-within-1, message=FALSE, warning=FALSE, echo=TRUE}
+within_task <- adjust_moderation(
+  "results/H3/H3_Within_Task_Moderation_Summary.xlsx",
+  "results/H3/H3_Within_Task_Moderation_Padjust.xlsx",
+  "Main | Within-Task Performance, Confidence, Willingness, Usefulness (Stage1-3)"
 )
+```
+
+## Reproducibility
+
+```{r session-info}
+sessionInfo()
+```

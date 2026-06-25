@@ -1,92 +1,73 @@
-# Study 2 — Main Experiment Results
+# Study 2 — Main (Initial-Session) Results
 
-This folder contains the data and R code for the main analyses of Study 2, a human-participant experiment examining how LLM assistance affects statistics task performance, confidence, AI attitudes, and behavioral intentions across three learning stages.
+Initial-session analyses of the three-stage learning experiment (*N* = 175):
+mixed-effects models for performance and in-task perceptions, pre→post attitude
+change, moderation analyses, and demographic balance checks.
 
----
+## Data (`data/`)
 
-## Overview
+`Study_2_Main_Results_Data.xlsx` — participant-level data for the main sample.
 
-This folder contains:
+**Condition:** `Label` (`AI` / `AI Human` / `Human`).
 
-1. Main inferential results (mixed models, moderation analyses)
-2. Demographic balance checks across conditions
-3. p-value adjustment for multiple comparisons (`additional/`)
+**Pre-study measures:** `Pre_GLAT_Objective_AI_Literacy`,
+`Pre_AILS_CCS_Subjective_AI_Literacy`, `Pre_AI_Trust`, `Pre_AI_Usefulness`,
+`Pre_AI_Affect`, `Pre_AI_Self_Efficacy`, `Pre_Behavioral_Intention`.
 
----
-
-## Data Description
-
-All data files are located in the `data/` subdirectory.
-
-### Input Files
-
-| File | Description |
-|------|-------------|
-| `Study_2_Main_Results_Data.xlsx` | Participant-level data for the main Study 2 sample |
-
-### Key Variables
-
-**Experimental condition:**
-
-| Variable | Description |
-|----------|-------------|
-| `Label` | AI condition (`AI` / `AI Human` / `Human`) |
-
-**Pre-study measures:**
-
-| Variable | Description |
-|----------|-------------|
-| `Pre_GLAT_Objective_AI_Literacy` | Objective AI literacy (GLAT scale) |
-| `Pre_AILS_CCS_Subjective_AI_Literacy` | Subjective AI literacy (AILS-CCS) |
-| `Pre_AI_Trust` | AI trust attitude |
-| `Pre_AI_Usefulness` | Perceived AI usefulness |
-| `Pre_AI_Affect` | Affective response toward AI |
-| `Pre_AI_Self_Efficacy` | AI self-efficacy |
-| `Pre_Behavioral_Intention` | Behavioral intention to use AI |
-
-**Task performance (per stage and task):**
+**Task performance** (per stage × task):
 
 | Variable | Description |
 |----------|-------------|
 | `stage[1-3]_task[0-3]_accuracy` | Proportion correct (0–1) |
 | `stage[1-3]_task[0-3]_confidence` | Confidence rating |
-| `stage[2-3]_task[0-3]_willing` | Willingness to accept AI guidance/answers |
-| `stage[2-3]_task[0-3]_useful` | Perceived usefulness of AI guidance/answers |
+| `stage[2-3]_task[0-3]_willing` | Willingness to accept guidance/answers |
+| `stage[2-3]_task[0-3]_useful` | Perceived usefulness of guidance/answers |
 
-**Post-study measures:**
-`Post_AI_Trust`, `Post_AI_Usefulness`, `Post_AI_Affect`, `Post_Behavioral_Intention`
+**Post-study:** `Post_AI_Trust`, `Post_AI_Usefulness`, `Post_AI_Affect`, `Post_Behavioral_Intention`.
 
-**Moderator variables:**
-`Gender`, `Age`, `Identity`, `Field`, `Stats_Background`, `Used_LLM_Frequency`, `Used_LLM_Hours`
+**Manipulation check:** `Recalled_Label` — source the participant recalled
+receiving (`AI` / `AI + Human` / `Human`), stored just before `Sign_Up`.
 
-> **Exclusion criterion:** Participants with `stage1_task0_accuracy >= 0.9` are excluded (ceiling-performance filter).
+**Moderators:** `Gender`, `Age`, `Identity`, `Field`, `Stats_Background`, `Used_LLM_Frequency`, `Used_LLM_Hours`.
 
----
+> **Exclusion:** participants with `stage1_task0_accuracy >= 0.9` (ceiling filter).
 
-## Code Description
-
-### Main Analysis (R)
+## Notebooks
 
 | File | Description |
 |------|-------------|
-| `Study 2 Main Results.Rmd` | Primary analysis: data loading and preprocessing; mixed-effects models for accuracy, confidence, willing, and useful across stages; pre-post attitude change analyses (AI trust, affect, usefulness, intention); moderation analyses by stats background, LLM experience, and demographics |
-| `Study 2 Main Demographic Results.Rmd` | Demographic balance checks: distribution tables for Label, Gender, Age, Identity, Field, Stats_Background, LLM usage; chi-square tests for condition balance across all demographics |
+| `Study 2 Main Results.Rmd` | Primary analysis: mixed-effects models for accuracy, confidence, willing, and useful across stages; pre→post attitude change; moderation by stats background, LLM experience, and demographics |
+| `Study 2 Main Demographic Results.Rmd` | Demographic balance: distribution tables and chi-square tests across conditions |
+| `additional/p-value adjudication.Rmd` | Holm and BH corrections for moderation p-values, grouped by outcome (uses only `dplyr` / `readxl` / `openxlsx`) |
 
-### Additional Analysis (R)
+## Outputs (`results/`)
 
-| File | Description |
-|------|-------------|
-| `p-value adjudication.Rmd` | Applies Holm and Benjamini-Hochberg (BH) corrections to moderation effect p-values, grouped by dependent variable |
+Beyond the rendered HTML, the notebooks write frozen workbooks into per-hypothesis
+subfolders (`Baseline/`, `H1/`, `H2/`, `H3/`) so every manuscript/SI table can be
+re-checked from a deposited file.
 
----
+**`Study 2 Main Results.Rmd`**
 
-## Software Requirements
+| Workbook | Contents |
+|----------|----------|
+| `Baseline/Baseline_Charateristics_By_Label.xlsx` | Baseline summaries + ANOVA by condition |
+| `H1/H1_Performance_Comparison_LMM.xlsx` | H1 accuracy LMM (no Task): summary, ANOVA, partial η², simple-effect post-hoc contrasts |
+| `H1/H1_Performance_Comparison_LMM_Task.xlsx` | H1 accuracy LMM with Task (adds Phase×Task×Label contrasts) |
+| `H1/H1_Performance_ItemLevel_Binomial_GLMM.xlsx` | H1 robustness: item-level binomial GLMM (`correct ~ Stage*Label + (1\|ID)+(1\|Item)+(1\|Task)`) |
+| `H2/H2_Within_Task_Attitude_Perceptions.xlsx` | H2 within-task confidence / willing / useful |
+| `H2/H2_Attitude_Change_Immediate_Results.xlsx` | H2 pre→post attitude change (change scores, ANOVA, η², post-hoc) |
+| `H2/Post_Survey_Experience.xlsx` | Post-survey perceived learning, satisfaction, sign-up |
+| `H3/H3_Attitude_Change_Moderation_Summary.xlsx` (+ `_Padjust`) | H3 attitude-change moderation: F/p per term (+ Holm/BH) |
+| `H3/H3_Within_Task_Moderation_Summary.xlsx` (+ `_Padjust`) | H3 within-task moderation: F/p per term (+ adjusted) |
+| `H3/H3_Attitude_Change_Immediate_Moderation_POSTHOC.xlsx` | H3 attitude-change per-term post-hoc |
+| `H3/H3_Within_Task_Moderation_ALL_Posthoc.xlsx` | H3 within-task per-term post-hoc |
+| `H3/Post_Survey_Moderation_Results.xlsx`, `_2.xlsx` | Post-survey moderation |
 
-**R (version 4.0+):**
-`broom`, `broom.mixed`, `car`, `DescTools`, `dplyr`, `tidyr`, `stringr`, `forcats`, `tibble`, `DT`, `effectsize`, `emmeans`, `ggplot2`, `interactions`, `janitor`, `lme4`, `lmerTest`, `lsr`, `MASS`, `openxlsx`, `readxl`, `ordinal`, `performance`, `report`, `bruceR` *(`additional/` only)*
+`_Padjust.xlsx` files come from `additional/p-value adjudication.Rmd`; all others from `Study 2 Main Results.Rmd`.
 
----
+**`Study 2 Main Demographic Results.Rmd`** → `Baseline/Demographic_Results.xlsx` (per-condition distributions + chi-square tests).
 
-## Output
-
-Main results are printed to R/HTML output. The p-value adjustment script exports an adjusted results file to `results/`.
+Packages (pinned in the top-level `renv.lock`): `broom`, `broom.mixed`, `car`,
+`DescTools`, `dplyr`, `tidyr`, `stringr`, `forcats`, `tibble`, `DT`,
+`effectsize`, `emmeans`, `ggplot2`, `interactions`, `janitor`, `lme4`,
+`lmerTest`, `lsr`, `MASS`, `openxlsx`, `readxl`, `ordinal`, `performance`, `report`.

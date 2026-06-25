@@ -1,16 +1,28 @@
 ---
-title: 'Study 1 Objective: Thinking Mode Mixed Models'
-author: "Spike"
+title: "Study 1 — Objective Benchmark: Thinking-Mode Mixed Models"
+author: "Siyuan Huang"
 date: "2026-01-16"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+set.seed(42)
 ```
 
-## Load Packages
-``` {r, message=FALSE, warning=FALSE}
+# Overview
+
+This document tests whether enabling a model's "thinking" mode affects
+objective benchmark **accuracy** and **stability** (run-to-run SD). Both
+outcomes are aggregated to the model × question level, logit-transformed,
+and analysed with linear mixed models that include a thinking-mode ×
+question interaction, a software fixed effect, and a by-model random
+intercept.
+
+## Packages
+
+```{r packages}
 library(dplyr)
 library(readxl)
 library(lme4)
@@ -21,7 +33,11 @@ library(report)
 ```
 
 ## Load Data
-``` {r, message=FALSE, warning=FALSE}
+
+Categorical design variables are coerced to factors; `Thinking_Model` is
+ordered so that level `"1"` (thinking) is the reference.
+
+```{r load-data}
 df_obj <- read_excel("data/Study_1_Objective_Data.xlsx")
 
 df_obj <- df_obj %>%
@@ -35,15 +51,24 @@ df_obj <- df_obj %>%
 ```
 
 ## Subset Thinking-Mode Platforms
-``` {r, message=FALSE, warning=FALSE}
+
+Only platforms that offer a distinct thinking mode are retained.
+
+```{r subset-thinking}
 thinking_model <- c("claude", "Grok", "deepseek", "gemini", "chatgpt")
 
 df_obj_thinking <- df_obj %>%
   filter(software %in% thinking_model)
 ```
 
-## Accuracy Aggregation
-``` {r, message=FALSE, warning=FALSE}
+## Accuracy
+
+### Aggregation
+
+Accuracy is aggregated to the model × question × mode level and
+logit-transformed (after bounding away from 0/1).
+
+```{r accuracy-aggregation}
 df_thinking_agg <- df_obj_thinking %>%
   group_by(model, question, Thinking_Model, software) %>%
   summarise(
@@ -58,8 +83,9 @@ df_thinking_agg <- df_obj_thinking %>%
   )
 ```
 
-## Accuracy Mixed Model
-``` {r, message=FALSE, warning=FALSE}
+### Mixed Model
+
+```{r accuracy-model}
 mod_acc <- lmer(
   Logit_Prop ~ Thinking_Model * question + software + (1 | model),
   data = df_thinking_agg
@@ -69,11 +95,16 @@ summary(mod_acc)
 anova(mod_acc)
 effectsize::eta_squared(mod_acc, partial = TRUE)
 emmeans(mod_acc, pairwise ~ Thinking_Model)
-#report(mod_acc)
 ```
 
-## Stability (SD) Aggregation
-``` {r, message=FALSE, warning=FALSE}
+## Stability (Run-to-Run SD)
+
+### Aggregation
+
+The same aggregation is applied to the run-to-run SD of accuracy, again
+logit-transformed.
+
+```{r stability-aggregation}
 df_SD_thinking_agg <- df_obj_thinking %>%
   group_by(model, software, question, Thinking_Model) %>%
   summarise(
@@ -88,8 +119,9 @@ df_SD_thinking_agg <- df_obj_thinking %>%
   )
 ```
 
-## Stability (SD) Mixed Model
-``` {r, message=FALSE, warning=FALSE}
+### Mixed Model
+
+```{r stability-model}
 mod_sd <- lmer(
   Logit_Prop_SD ~ Thinking_Model * question + software + (1 | model),
   data = df_SD_thinking_agg
@@ -99,5 +131,165 @@ summary(mod_sd)
 anova(mod_sd)
 effectsize::eta_squared(mod_sd, partial = TRUE)
 emmeans(mod_sd, pairwise ~ Thinking_Model)
-#report(mod_sd)
+```
+
+## Sensitivity Analysis: Paired-Only Platforms (Claude, Grok)
+
+The main contrast pools five platforms, but only Claude (3.7 Sonnet vs
+3.7 Sonnet Extended) and Grok (Grok 3 vs Grok 3 Think) toggle thinking
+mode on the same underlying model; the DeepSeek, Gemini, and OpenAI pairs
+cross model families or generations. Restricting the contrast to Claude
+and Grok removes this cross-family confound (SI Appendix, Text S3).
+
+```{r sensitivity-subset}
+paired_platforms <- c("claude", "Grok")
+
+df_obj_paired <- df_obj_thinking %>%
+  filter(software %in% paired_platforms) %>%
+  mutate(software = droplevels(software))
+```
+
+### Accuracy (Paired-Only)
+
+```{r sensitivity-accuracy}
+df_paired_agg <- df_obj_paired %>%
+  group_by(model, question, Thinking_Model, software) %>%
+  summarise(
+    n = n(),
+    Prop_Correct = mean(accuracy_rate),
+    SD_Correct = sd(accuracy_rate),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Prop_Correct_adj = pmin(pmax(Prop_Correct, 1e-5), 1 - 1e-5),
+    Logit_Prop = qlogis(Prop_Correct_adj)
+  )
+
+mod_acc_paired <- lmer(
+  Logit_Prop ~ Thinking_Model * question + software + (1 | model),
+  data = df_paired_agg
+)
+
+summary(mod_acc_paired)
+anova(mod_acc_paired)
+effectsize::eta_squared(mod_acc_paired, partial = TRUE)
+emmeans(mod_acc_paired, pairwise ~ Thinking_Model)
+```
+
+### Stability (Paired-Only)
+
+```{r sensitivity-stability}
+df_SD_paired_agg <- df_obj_paired %>%
+  group_by(model, software, question, Thinking_Model) %>%
+  summarise(
+    n = n(),
+    Prop_Correct = mean(accuracy_rate),
+    SD_Correct = sd(accuracy_rate),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Prop_SD_adj = pmin(pmax(SD_Correct, 1e-5), 1 - 1e-5),
+    Logit_Prop_SD = qlogis(Prop_SD_adj)
+  )
+
+mod_sd_paired <- lmer(
+  Logit_Prop_SD ~ Thinking_Model * question + software + (1 | model),
+  data = df_SD_paired_agg
+)
+
+summary(mod_sd_paired)
+anova(mod_sd_paired)
+effectsize::eta_squared(mod_sd_paired, partial = TRUE)
+emmeans(mod_sd_paired, pairwise ~ Thinking_Model)
+```
+
+### Robustness: OLS Without By-Model Random Intercept
+
+In the paired-only subset each `model` maps to a single `Thinking_Model`
+level, so the by-model random intercept has no within-model variance and
+the mixed model is singular (variance = 0). Fixed-effect inference is
+unaffected; as a robustness check we refit both with `lm()` (dropping
+`(1 | model)`).
+
+```{r sensitivity-ols}
+mod_acc_paired_ols <- lm(
+  Logit_Prop ~ Thinking_Model * question + software,
+  data = df_paired_agg
+)
+summary(mod_acc_paired_ols)
+anova(mod_acc_paired_ols)
+effectsize::eta_squared(mod_acc_paired_ols, partial = TRUE)
+emmeans(mod_acc_paired_ols, pairwise ~ Thinking_Model)
+
+mod_sd_paired_ols <- lm(
+  Logit_Prop_SD ~ Thinking_Model * question + software,
+  data = df_SD_paired_agg
+)
+summary(mod_sd_paired_ols)
+anova(mod_sd_paired_ols)
+effectsize::eta_squared(mod_sd_paired_ols, partial = TRUE)
+emmeans(mod_sd_paired_ols, pairwise ~ Thinking_Model)
+```
+
+## Supplementary Analysis: Distribution-Appropriate Models (No logit + clamp)
+
+The models above logit-transform the proportions and SDs after clamping
+them away from 0/1 with a fixed constant (`1e-5`). As a robustness
+check we refit both outcomes with likelihoods that handle the 0/1
+boundaries directly, with no clamp.
+
+### Accuracy: Item-Level Binomial GLMM
+
+Each iteration's outcome is the number of items correct out of those
+scored for the task (Q1 = 6, Q2 = 5, Q3 = 6), with the same by-model random
+intercept. The thinking × question interaction is not identifiable here
+(several cells at 100% accuracy cause complete separation), so the model is
+additive in thinking and question. (The interaction was non-significant in
+the main analysis.)
+
+```{r supp-accuracy}
+items_per_task <- df_obj_thinking %>%
+  filter(accuracy_rate > 0) %>%
+  mutate(task_items = round(sum_score / accuracy_rate)) %>%
+  distinct(question, task_items)
+
+df_acc_glmm <- df_obj_thinking %>%
+  left_join(items_per_task, by = "question") %>%
+  mutate(correct = sum_score, incorrect = task_items - sum_score)
+
+mod_acc_glmm <- glmer(
+  cbind(correct, incorrect) ~ Thinking_Model + question + software + (1 | model),
+  family = binomial, data = df_acc_glmm
+)
+
+summary(mod_acc_glmm)
+# Thinking-mode contrast on the response (odds-ratio) scale, no clamp:
+emmeans(mod_acc_glmm, pairwise ~ Thinking_Model, type = "response")
+```
+
+### Stability: Binary Run-to-Run Instability
+
+```{r supp-stability}
+df_stab_bin <- df_obj_thinking %>%
+  group_by(model, software, question, Thinking_Model) %>%
+  summarise(SD = sd(accuracy_rate), .groups = "drop") %>%
+  mutate(unstable = as.integer(SD > 0))
+
+# 1 = thinking (reference), 0 = standard
+table(Thinking_Model = df_stab_bin$Thinking_Model,
+      unstable = df_stab_bin$unstable)
+
+# Exact test (no distributional assumptions, handles the small/zero cells)
+fisher.test(table(df_stab_bin$Thinking_Model, df_stab_bin$unstable))
+
+# Simple logistic regression for the odds ratio
+mod_stab_bin <- glm(unstable ~ Thinking_Model, family = binomial, data = df_stab_bin)
+summary(mod_stab_bin)
+exp(cbind(OR = coef(mod_stab_bin), confint(mod_stab_bin)))
+```
+
+## Reproducibility
+
+```{r session-info}
+sessionInfo()
 ```

@@ -70,8 +70,6 @@ to their rendered HTML (rather than writing a workbook) are marked *(HTML)*.
 |-----------------|--------|
 | Table 1 — objective accuracy and stability | S1-Obj `Study 1 Objective Descriptive Results.Rmd` *(HTML)* |
 | Table 2 — quality ratings by model × rater | S1-Subj `Study 1 Subjective Decriptive Results.Rmd` *(HTML)* |
-| Fig. 1 — Study 1 selection flowchart | non-analytic diagram (no deposited source asset) |
-| Fig. 2 — Study 2 participant flow | non-analytic diagram (no deposited source asset) |
 | Fig. 3 — LLM performance | Fig `Figure_Study1_1.Rmd` → `figure/Figure_Study1_1.{pdf,png,svg}` |
 | Fig. 4 — guidance quality | Fig `Figure_Study1_2.Rmd` → `figure/Figure_Study1_2.*` |
 | Fig. 5 — accuracy trajectories; early vs. late | Fig `Figure_Study2_1.Rmd` → `figure/Figure_Study2_1.*` (panel c from `data/Correction_Data.csv`) |
@@ -102,32 +100,6 @@ to their rendered HTML (rather than writing a workbook) are marked *(HTML)*.
 SI ANOVA and post-hoc tables (S8–S12) are produced by the same H1/H2 workbooks
 above; the completers-only robustness tables (S13–S15) come from the **Compl**
 `results/` folder. Each folder's `readme.md` lists its full workbook inventory.
-
-## Notes
-
-- **Long-running notebooks.** `Study_2_Main_Results/Study 2 Main Results.Rmd`
-  and `Study_2_FollowUp_Results/MAR/Study 2 MAR Results.Rmd` are CPU-bound
-  (~10–25 min from scratch). knitr chunk caches are deposited (`*_cache/`), so
-  re-rendering completes in seconds unless the code or R/package versions change.
-
-- **Duplicated inputs.** To keep notebooks self-contained, three Study 1
-  workbooks are byte-identical snapshots in a second folder. Canonical copies:
-  `Study_1_Objective_Data.xlsx` and `Study_1_Subjective_Data.xlsx` in their
-  `Study_1_*_Results/data/` folders (snapshot in `Figures/data/`);
-  `correction_raw_data.xlsx` in `Study_2_Early_Late_Correction/data/`
-  (snapshot in `Study_2_Main_Results/data/`). If a canonical file changes,
-  re-copy it over the snapshot.
-
-- **Figures** render at 600 dpi in Arial via `showtext`, falling back to the
-  default sans family if Arial is absent. Outputs are reproducible up to being
-  visually identical; byte-for-byte divergence of PDF/PNG/SVG across machines is
-  expected.
-
-- **Auxiliary scripts.** The `p-value adjudication.Rmd` notebooks
-  (`Study_2_Main_Results/additional/`, `Study_2_FollowUp_Results/MAR/`) apply
-  Holm (FWER) and BH (FDR) corrections to the H3 moderation terms and write the
-  `*_Padjust.xlsx` workbooks. They run standalone and are not part of the main
-  render pipeline.
 
 ## Citation
 If you use our data or results in your work, please cite our study.
